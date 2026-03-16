@@ -1,0 +1,35 @@
+APP_SERVICE:
+  host: ${APP_SERVICE_HOST}
+
+USER_DB:
+  db_user: ${DB_USER}
+  db_password: ${DB_PASSWORD}
+  db_host: ${DB_HOST}
+  db_port: ${DB_PORT}
+  db_name: ${DB_NAME_USER}
+
+OPENAI_SERVICE:
+  base_url: ${OPENAI_BASE_URL}
+  api_key: ${OPENAI_API_KEY}
+
+dashscope:
+  api_key: ${DASHSCOPE_API_KEY}
+  base_url: ${DASHSCOPE_BASE_URL}
+  embedding_model: text-embedding-v4
+  embedding_dimension: 1536
+
+aliyun_rds:
+  enabled: true
+  db_user: ${DB_USER}
+  db_password: ${DB_PASSWORD}
+  db_host: ${DB_HOST}
+  db_port: ${DB_PORT}
+  db_name_paper: ${DB_NAME_PAPER}
+
+aliyun_oss:
+  enabled: true
+  access_key_id: ${ALIYUN_ACCESS_KEY_ID}
+  access_key_secret: ${ALIYUN_ACCESS_KEY_SECRET}
+  endpoint: ${ALIYUN_OSS_ENDPOINT}
+  bucket_name: ${ALIYUN_OSS_BUCKET}
+  upload_prefix: imgs/

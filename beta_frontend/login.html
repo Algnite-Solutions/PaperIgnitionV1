@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - PaperIgnition</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@300;400;500;600;700&family=Rubik:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-color: #ffffff;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666666;
+            --text-muted: #999999;
+            --border-color: #e5e5e5;
+            --accent-red: #dc2626;
+            --hover-bg: #f8f9fa;
+            --card-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            --success-color: #16a34a;
+            --error-color: #dc2626;
+        }
+
+        body {
+            font-family: 'Noto Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+            position: relative;
+        }
+
+        .main-content {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            padding-bottom: 80px;
+        }
+
+        .login-container {
+            background: var(--bg-color);
+            padding: 48px 40px;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .logo {
+            font-family: 'Rubik', sans-serif;
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .logo .highlight {
+            color: var(--accent-red);
+        }
+
+        .subtitle {
+            font-size: 16px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+
+        .description {
+            font-size: 14px;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        .form {
+            margin-top: 32px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 16px;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            transition: all 0.2s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--accent-red);
+            box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+        }
+
+        .form-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .error-message {
+            color: var(--error-color);
+            font-size: 14px;
+            margin-top: 8px;
+            display: block;
+        }
+
+        .success-message {
+            color: var(--success-color);
+            font-size: 14px;
+            margin-top: 8px;
+            display: block;
+        }
+
+        .button-group {
+            margin: 32px 0;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .btn {
+            padding: 14px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            text-decoration: none;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .btn-primary {
+            background-color: var(--accent-red);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background-color: #b91c1c;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+        }
+
+        .btn-secondary {
+            background-color: var(--hover-bg);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background-color: #f1f5f9;
+            transform: translateY(-1px);
+            box-shadow: var(--card-shadow);
+        }
+
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid transparent;
+            border-top: 2px solid currentColor;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .register-link {
+            text-align: center;
+            margin-top: 24px;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .register-link a {
+            color: var(--accent-red);
+            text-decoration: none;
+            font-weight: 500;
+            margin-left: 4px;
+        }
+
+        .register-link a:hover {
+            text-decoration: underline;
+        }
+
+        .back-link {
+            text-align: center;
+            margin-top: 32px;
+        }
+
+        .back-link a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 14px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .back-link a:hover {
+            color: var(--text-primary);
+        }
+
+        /* Responsive */
+        @media (max-width: 480px) {
+            .login-container {
+                padding: 32px 24px;
+                margin: 10px;
+            }
+
+            .logo {
+                font-size: 28px;
+            }
+        }
+
+        /* Footer */
+        .footer {
+            padding: 24px 0;
+            margin-top: auto;
+            text-align: center;
+            width: 100%;
+            position: absolute;
+            bottom: 0;
+        }
+
+        .footer-content {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 14px;
+        }
+
+        .footer-content a {
+            color: rgba(255, 255, 255, 0.8);
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+
+        .footer-content a:hover {
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-content">
+        <div class="login-container">
+        <div class="header">
+            <h1 class="logo">Paper<span class="highlight">Ignition</span></h1>
+            <p class="subtitle">AI-Powered Paper Discovery</p>
+            <p class="description">Discover the most relevant academic papers based on your interests and reading habits</p>
+        </div>
+
+        <form class="form" id="loginForm">
+            <div class="form-group">
+                <label class="form-label" for="email">Email Address</label>
+                <input 
+                    type="email" 
+                    id="email" 
+                    class="form-input" 
+                    placeholder="Enter your email address"
+                    required
+                >
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="password">Password</label>
+                <input 
+                    type="password" 
+                    id="password" 
+                    class="form-input" 
+                    placeholder="Enter your password"
+                    required
+                >
+            </div>
+
+            <div id="errorMessage" class="error-message" style="display: none;"></div>
+            <div id="successMessage" class="success-message" style="display: none;"></div>
+
+            <div class="button-group">
+                <button type="submit" class="btn btn-primary" id="loginBtn">
+                    <span class="btn-text">Login with Email</span>
+                    <span class="spinner" id="loginSpinner" style="display: none;"></span>
+                </button>
+                
+                <button type="button" class="btn btn-secondary" id="demoBtn">
+                    Continue as Demo User
+                </button>
+            </div>
+
+            <div class="register-link">
+                Don't have an account?
+                <a href="register.html">Sign up now</a>
+            </div>
+        </form>
+
+        <div class="back-link">
+            <a href="index.html">← Back to Papers</a>
+        </div>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <p>© 2025 PaperIgnition | <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">浙ICP备2025200330号</a></p>
+            </div>
+        </div>
+    </footer>
+
+    <script type="module">
+        // Import authentication service
+        import './js/auth.js';
+
+        const loginForm = document.getElementById('loginForm');
+        const emailInput = document.getElementById('email');
+        const passwordInput = document.getElementById('password');
+        const loginBtn = document.getElementById('loginBtn');
+        const demoBtn = document.getElementById('demoBtn');
+        const errorMessage = document.getElementById('errorMessage');
+        const successMessage = document.getElementById('successMessage');
+        const loginSpinner = document.getElementById('loginSpinner');
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            // Check if already logged in
+            if (window.AuthService && window.AuthService.isLoggedIn()) {
+                window.location.href = 'profile.html';
+                return;
+            }
+
+            setupEventListeners();
+        });
+
+        function setupEventListeners() {
+            loginForm.addEventListener('submit', handleLogin);
+            demoBtn.addEventListener('click', handleDemoLogin);
+            
+            // Clear messages on input
+            [emailInput, passwordInput].forEach(input => {
+                input.addEventListener('input', clearMessages);
+            });
+        }
+
+        async function handleLogin(event) {
+            event.preventDefault();
+            
+            const email = emailInput.value.trim();
+            const password = passwordInput.value.trim();
+
+            // Validation
+            if (!email || !password) {
+                showError('Email and password are required');
+                return;
+            }
+
+            if (!/\S+@\S+\.\S+/.test(email)) {
+                showError('Please enter a valid email address');
+                return;
+            }
+
+            setLoading(true);
+            clearMessages();
+
+            try {
+                const result = await window.AuthService.login(email, password);
+                
+                if (result.success) {
+                    showSuccess('Login successful! Redirecting...');
+                    
+                    // Redirect based on user setup status
+                    setTimeout(() => {
+                        if (result.needsSetup) {
+                            window.location.href = 'interests.html';
+                        } else {
+                            window.location.href = 'profile.html';
+                        }
+                    }, 1500);
+                } else {
+                    showError(result.error || 'Login failed');
+                }
+            } catch (error) {
+                showError('Network error. Please try again.');
+                console.error('Login error:', error);
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        function handleDemoLogin() {
+            setLoading(true, demoBtn);
+            clearMessages();
+
+            // Simulate demo login
+            setTimeout(() => {
+                const demoUser = {
+                    email: 'demo@paperignition.com',
+                    username: 'Demo User',
+                    isDemo: true
+                };
+
+                window.AuthService.setUser(demoUser);
+                showSuccess('Demo login successful! Redirecting...');
+                
+                setTimeout(() => {
+                    window.location.href = 'index.html';
+                }, 1500);
+            }, 1000);
+        }
+
+        function setLoading(loading, button = loginBtn) {
+            if (loading) {
+                button.disabled = true;
+                if (button === loginBtn) {
+                    loginSpinner.style.display = 'inline-block';
+                    document.querySelector('.btn-text').textContent = 'Logging in...';
+                } else {
+                    button.textContent = 'Loading...';
+                }
+            } else {
+                button.disabled = false;
+                if (button === loginBtn) {
+                    loginSpinner.style.display = 'none';
+                    document.querySelector('.btn-text').textContent = 'Login with Email';
+                } else {
+                    button.textContent = 'Continue as Demo User';
+                }
+            }
+        }
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+            successMessage.style.display = 'none';
+        }
+
+        function showSuccess(message) {
+            successMessage.textContent = message;
+            successMessage.style.display = 'block';
+            errorMessage.style.display = 'none';
+        }
+
+        function clearMessages() {
+            errorMessage.style.display = 'none';
+            successMessage.style.display = 'none';
+        }
+    </script>
+</body>
+</html>

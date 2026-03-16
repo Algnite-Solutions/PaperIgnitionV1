@@ -1,0 +1,22 @@
+APP_SERVICE:
+  host: http://localhost:8000
+
+USER_DB:
+  db_user: test_user
+  db_password: "11111"
+  db_host: localhost
+  db_port: "5432"
+  db_name: test_user_db
+
+OPENAI_SERVICE:
+  base_url: https://api.deepseek.com
+  api_key: ${OPENAI_API_KEY}
+
+dashscope:
+  api_key: ${DASHSCOPE_API_KEY}
+  base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+  embedding_model: text-embedding-v4
+  embedding_dimension: 1536
+
+aliyun_rds:
+  enabled: false

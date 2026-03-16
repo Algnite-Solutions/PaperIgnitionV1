@@ -1,0 +1,49 @@
+[project]
+name = "paperignition"
+version = "2.0.0"
+description = "AI-powered academic paper recommendation system"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.0",
+    "fastapi>=0.100",
+    "uvicorn[standard]",
+    "sqlalchemy[asyncio]>=2.0",
+    "asyncpg",
+    "python-jose[cryptography]",
+    "pwdlib[bcrypt]",
+    "python-dotenv",
+    "google-genai",
+    "httpx",
+    "tenacity",
+    "pyyaml",
+    "beautifulsoup4",
+    "PyMuPDF",
+    "PyPDF2",
+    "arxiv>=2.0",
+    "requests",
+    "openai",
+    "pydantic[email]",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-asyncio", "ruff"]
+pdf-ocr = ["volcengine"]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[tool.setuptools.packages.find]
+include = ["core*", "backend*", "orchestrator*"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

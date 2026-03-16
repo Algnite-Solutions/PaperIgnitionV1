@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile - PaperIgnition</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@300;400;500;600;700&family=Rubik:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-color: #ffffff;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666666;
+            --text-muted: #999999;
+            --border-color: #e5e5e5;
+            --accent-red: #dc2626;
+            --hover-bg: #f8f9fa;
+            --card-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            --success-color: #16a34a;
+            --error-color: #dc2626;
+            --max-width: 800px;
+        }
+
+        body {
+            font-family: 'Noto Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: var(--max-width);
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        /* Header */
+        .header {
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            background-color: var(--bg-color);
+            z-index: 100;
+        }
+
+        .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 64px;
+        }
+
+        .logo {
+            font-family: 'Rubik', sans-serif;
+            font-size: 24px;
+            font-weight: 600;
+            color: var(--text-primary);
+            text-decoration: none;
+        }
+
+        .logo .highlight {
+            color: var(--accent-red);
+        }
+
+        .nav {
+            display: flex;
+            align-items: center;
+            gap: 32px;
+        }
+
+        .nav a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s ease;
+        }
+
+        .nav a:hover {
+            color: var(--text-primary);
+        }
+
+        /* Main Content */
+        .main {
+            padding: 32px 0;
+        }
+
+        .profile-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 16px;
+            padding: 40px;
+            margin-bottom: 32px;
+            color: white;
+            text-align: center;
+        }
+
+        .profile-avatar {
+            width: 80px;
+            height: 80px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            font-weight: bold;
+            margin: 0 auto 16px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .profile-name {
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .profile-email {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+
+        /* Profile Content */
+        .profile-content {
+            display: grid;
+            gap: 32px;
+        }
+
+        .profile-section {
+            background: var(--bg-color);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 24px;
+        }
+
+        .section-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: var(--text-primary);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 20px;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 20px;
+            background: var(--hover-bg);
+            border-radius: 8px;
+        }
+
+        .stat-number {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--accent-red);
+            display: block;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        .interests-list {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .interest-tag {
+            background: var(--accent-red);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 16px;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            transition: all 0.2s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--accent-red);
+            box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background-color: var(--accent-red);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #b91c1c;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background-color: var(--hover-bg);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-secondary:hover {
+            background-color: #f1f5f9;
+            transform: translateY(-1px);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 60px 20px;
+        }
+
+        .spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid var(--border-color);
+            border-top: 3px solid var(--accent-red);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .message {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+
+        .message.success {
+            background-color: rgba(34, 197, 94, 0.1);
+            color: var(--success-color);
+            border: 1px solid rgba(34, 197, 94, 0.2);
+        }
+
+        .message.error {
+            background-color: rgba(239, 68, 68, 0.1);
+            color: var(--error-color);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .profile-header {
+                padding: 24px;
+            }
+
+            .profile-name {
+                font-size: 24px;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .nav {
+                gap: 16px;
+            }
+        }
+
+        /* Footer */
+        .footer {
+            border-top: 1px solid var(--border-color);
+            padding: 24px 0;
+            margin-top: 60px;
+            text-align: center;
+        }
+
+        .footer-content {
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        .footer-content a {
+            color: var(--text-muted);
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+
+        .footer-content a:hover {
+            color: var(--text-primary);
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <a href="index.html" class="logo">Paper<span class="highlight">Ignition</span></a>
+                <nav class="nav">
+                    <a href="index.html">Explore</a>
+                    <a href="favorites.html">Favorites</a>
+                    <a href="profile.html" style="color: var(--accent-red);">Profile</a>
+                    <a href="#" id="logoutLink">Logout</a>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <main class="main">
+        <div class="container">
+            <div id="loadingIndicator" class="loading">
+                <div class="spinner"></div>
+                <p>Loading profile...</p>
+            </div>
+
+            <div id="profileContent" style="display: none;">
+                <!-- Profile Header -->
+                <div class="profile-header">
+                    <div class="profile-avatar" id="profileAvatar">U</div>
+                    <h1 class="profile-name" id="profileName">User Name</h1>
+                    <p class="profile-email" id="profileEmail">user@example.com</p>
+                </div>
+
+                <div class="profile-content">
+                    <!-- Statistics Section -->
+                    <div class="profile-section">
+                        <h2 class="section-title">Activity Overview</h2>
+                        <div class="stats-grid">
+                            <div class="stat-item">
+                                <span class="stat-number" id="paperCount">0</span>
+                                <span class="stat-label">Papers Read</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-number" id="bookmarkCount">0</span>
+                                <span class="stat-label">Bookmarked</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-number" id="joinDays">0</span>
+                                <span class="stat-label">Days Active</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Research Interests -->
+                    <div class="profile-section">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                            <h2 class="section-title" style="margin-bottom: 0;">Research Interests</h2>
+                            <button type="button" class="btn btn-secondary" id="editInterestsBtn" onclick="toggleInterestsEdit()">
+                                Edit
+                            </button>
+                        </div>
+                        
+                        <!-- Display Mode -->
+                        <div id="interestsDisplay">
+                            <div class="interests-list" id="interestsList">
+                                <!-- Interests will be populated here -->
+                            </div>
+                            <div id="interestsDebugInfo" style="margin-top: 8px; font-size: 12px; color: var(--text-muted); display: none;">
+                                <!-- Debug info will be shown here -->
+                            </div>
+                        </div>
+                        
+                        <!-- Edit Mode -->
+                        <div id="interestsEdit" style="display: none;">
+                            <div class="form-group">
+                                <label class="form-label" for="interestsInput">
+                                    Describe your research interests (natural language)
+                                </label>
+                                <textarea 
+                                    id="interestsInput" 
+                                    class="form-input" 
+                                    rows="4" 
+                                    placeholder="例如：我对自然语言处理、机器学习算法优化以及计算机视觉在医疗影像中的应用很感兴趣..."
+                                    style="resize: vertical; min-height: 100px;"
+                                ></textarea>
+                                <small style="color: var(--text-muted); font-size: 12px; margin-top: 4px; display: block;">
+                                    用自然语言描述您的研究兴趣，系统会自动解析并提取关键词
+                                </small>
+                            </div>
+                                                    <div style="display: flex; gap: 12px; margin-top: 16px;">
+                            <button type="button" class="btn btn-primary" id="saveInterestsBtn" onclick="saveInterests()">
+                                <span>Save Interests</span>
+                            </button>
+                        </div>
+                        </div>
+                    </div>
+
+                    <!-- Profile Settings -->
+                    <div class="profile-section">
+                        <h2 class="section-title">Profile Settings</h2>
+                        
+                        <div id="messageContainer"></div>
+                        
+                        <form id="profileForm">
+                            <div class="form-group">
+                                <label class="form-label" for="usernameInput">Display Name</label>
+                                <input type="text" id="usernameInput" class="form-input" placeholder="Enter your display name">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label" for="emailInput">Email Address</label>
+                                <input type="email" id="emailInput" class="form-input" placeholder="Enter your email" readonly>
+                            </div>
+                            
+                            <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                                <button type="submit" class="btn btn-primary" id="saveBtn">
+                                    <span>Save Changes</span>
+                                </button>
+                                <a href="index.html" class="btn btn-secondary">
+                                    Back to Papers
+                                </a>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Not logged in message -->
+            <div id="notLoggedIn" style="display: none; text-align: center; padding: 60px 20px;">
+                <h2>Please Log In</h2>
+                <p style="margin: 16px 0; color: var(--text-secondary);">
+                    You need to be logged in to view your profile.
+                </p>
+                <a href="login.html" class="btn btn-primary">Go to Login</a>
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <p>© 2025 PaperIgnition | <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">浙ICP备2025200330号</a></p>
+            </div>
+        </div>
+    </footer>
+
+    <script type="module">
+        import './js/auth.js';
+
+        // DOM elements
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const profileContent = document.getElementById('profileContent');
+        const notLoggedIn = document.getElementById('notLoggedIn');
+        const profileForm = document.getElementById('profileForm');
+        const messageContainer = document.getElementById('messageContainer');
+        const logoutLink = document.getElementById('logoutLink');
+
+        // Profile elements
+        const profileAvatar = document.getElementById('profileAvatar');
+        const profileName = document.getElementById('profileName');
+        const profileEmail = document.getElementById('profileEmail');
+        const usernameInput = document.getElementById('usernameInput');
+        const emailInput = document.getElementById('emailInput');
+        const paperCount = document.getElementById('paperCount');
+        const bookmarkCount = document.getElementById('bookmarkCount');
+        const joinDays = document.getElementById('joinDays');
+        const interestsList = document.getElementById('interestsList');
+        const saveBtn = document.getElementById('saveBtn');
+        
+        // Research interests elements
+        const editInterestsBtn = document.getElementById('editInterestsBtn');
+        const interestsDisplay = document.getElementById('interestsDisplay');
+        const interestsEdit = document.getElementById('interestsEdit');
+        const interestsInput = document.getElementById('interestsInput');
+        const saveInterestsBtn = document.getElementById('saveInterestsBtn');
+        const interestsDebugInfo = document.getElementById('interestsDebugInfo');
+
+        let currentProfile = null;
+        
+        // Show debug info if URL contains debug parameter
+        const showDebug = window.location.search.includes('debug=true');
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            setupEventListeners();
+            loadProfile();
+        });
+
+        function setupEventListeners() {
+            profileForm.addEventListener('submit', handleSaveProfile);
+            logoutLink.addEventListener('click', handleLogout);
+        }
+
+        async function loadProfile() {
+            // Check if user is logged in
+            if (!window.AuthService.isLoggedIn()) {
+                showNotLoggedIn();
+                return;
+            }
+
+            try {
+                // Use the backend API to get user profile
+                const token = window.AuthService.getToken();
+                const response = await fetch('/api/users/me', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const profile = await response.json();
+                console.log('Profile data from API:', profile);
+                console.log('Research interests field (research_interests_text):', profile.research_interests_text);
+                console.log('Alternative interests field (interests_description):', profile.interests_description);
+                currentProfile = profile;
+                displayProfile(profile);
+                
+                loadingIndicator.style.display = 'none';
+                profileContent.style.display = 'block';
+            } catch (error) {
+                console.error('Error loading profile:', error);
+                showMessage('Failed to load profile. Please try again.', 'error');
+                
+                loadingIndicator.style.display = 'none';
+                profileContent.style.display = 'block';
+            }
+        }
+
+        function displayProfile(profile) {
+            // Update profile header
+            const initials = profile.username ? 
+                profile.username.split(' ').map(n => n[0]).join('').toUpperCase() : 'U';
+            profileAvatar.textContent = initials;
+            profileName.textContent = profile.username || 'User';
+            profileEmail.textContent = profile.email;
+
+            // Update form fields
+            usernameInput.value = profile.username || '';
+            emailInput.value = profile.email;
+
+            // Update statistics
+            paperCount.textContent = profile.activity_data?.viewed_count || 0;
+            bookmarkCount.textContent = profile.activity_data?.favorite_count || 0;
+            joinDays.textContent = profile.activity_data?.days_active || 0;
+
+            // Update interests - handle multiple possible field names and formats
+            console.log('Updating interests display with profile:', profile);
+            
+            // Use the correct field name from backend API
+            const researchInterests = profile.research_interests_text || 
+                                     profile.interests_description || 
+                                     profile.research_interests || 
+                                     profile.researchInterests || 
+                                     profile.interests || 
+                                     null;
+                                     
+            console.log('Found research interests:', researchInterests);
+            
+            if (researchInterests) {
+                if (typeof researchInterests === 'string' && researchInterests.trim()) {
+                    // If it's a string, display it as natural language
+                    interestsList.innerHTML = `<div style="color: var(--text-primary); line-height: 1.6; background: var(--hover-bg); padding: 12px; border-radius: 8px; border-left: 3px solid var(--accent-red);">${researchInterests}</div>`;
+                    interestsInput.value = researchInterests;
+                } else if (Array.isArray(researchInterests) && researchInterests.length > 0) {
+                    // If it's an array, display as tags
+                    interestsList.innerHTML = researchInterests
+                        .map(interest => `<span class="interest-tag">${interest}</span>`)
+                        .join('');
+                    interestsInput.value = researchInterests.join(', ');
+                } else {
+                    // Empty or invalid data
+                    interestsList.innerHTML = '<span style="color: var(--text-muted);">No research interests set yet</span>';
+                    interestsInput.value = '';
+                }
+                         } else {
+                 // No research interests data found
+                 interestsList.innerHTML = '<span style="color: var(--text-muted);">No research interests set yet. Click "Edit" to add your interests.</span>';
+                 interestsInput.value = '';
+             }
+             
+             // Show debug info if enabled
+             if (showDebug) {
+                 interestsDebugInfo.style.display = 'block';
+                 interestsDebugInfo.innerHTML = `
+                     <strong>Debug Info:</strong><br>
+                     API Fields: research_interests_text=${profile.research_interests_text ? 'found' : 'null'}, 
+                     interests_description=${profile.interests_description ? 'found' : 'null'}, 
+                     research_interests=${profile.research_interests ? 'found' : 'null'}<br>
+                     Selected: ${researchInterests ? (typeof researchInterests + ': ' + (typeof researchInterests === 'string' ? researchInterests.substring(0, 50) + '...' : JSON.stringify(researchInterests))) : 'none'}
+                 `;
+             }
+        }
+
+        async function handleSaveProfile(event) {
+            event.preventDefault();
+            
+            const username = usernameInput.value.trim();
+            if (!username) {
+                showMessage('Please enter a display name.', 'error');
+                return;
+            }
+
+            // Disable save button
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Saving...';
+            clearMessages();
+
+            try {
+                const token = window.AuthService.getToken();
+                const response = await fetch('/api/users/me/profile', {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username: username
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+                }
+
+                const updatedProfile = await response.json();
+                currentProfile = updatedProfile;
+                displayProfile(currentProfile);
+                showMessage('Profile updated successfully!', 'success');
+
+            } catch (error) {
+                console.error('Error updating profile:', error);
+                showMessage(error.message || 'Network error. Please try again.', 'error');
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Save Changes';
+            }
+        }
+
+        function handleLogout(event) {
+            event.preventDefault();
+            if (confirm('Are you sure you want to logout?')) {
+                window.AuthService.logout();
+                window.location.href = 'index.html';
+            }
+        }
+
+        function showNotLoggedIn() {
+            loadingIndicator.style.display = 'none';
+            notLoggedIn.style.display = 'block';
+        }
+
+        function showMessage(message, type) {
+            const messageEl = document.createElement('div');
+            messageEl.className = `message ${type}`;
+            messageEl.textContent = message;
+            
+            messageContainer.innerHTML = '';
+            messageContainer.appendChild(messageEl);
+            
+            // Auto-hide success messages
+            if (type === 'success') {
+                setTimeout(() => {
+                    messageEl.remove();
+                }, 3000);
+            }
+        }
+
+        function clearMessages() {
+            messageContainer.innerHTML = '';
+        }
+
+        // Research Interests editing functions
+        function toggleInterestsEdit() {
+            const isEditing = interestsEdit.style.display !== 'none';
+            
+            if (isEditing) {
+                // Cancel edit mode
+                cancelInterestsEdit();
+            } else {
+                // Enter edit mode
+                interestsDisplay.style.display = 'none';
+                interestsEdit.style.display = 'block';
+                editInterestsBtn.textContent = 'Cancel';
+                interestsInput.focus();
+            }
+        }
+
+        function cancelInterestsEdit() {
+            interestsDisplay.style.display = 'block';
+            interestsEdit.style.display = 'none';
+            editInterestsBtn.textContent = 'Edit';
+            
+            // Reset input to current value
+            if (currentProfile) {
+                const researchInterests = currentProfile.research_interests_text || 
+                                         currentProfile.interests_description || 
+                                         currentProfile.research_interests || 
+                                         currentProfile.researchInterests || 
+                                         currentProfile.interests || 
+                                         null;
+                                         
+                if (researchInterests) {
+                    if (typeof researchInterests === 'string') {
+                        interestsInput.value = researchInterests;
+                    } else if (Array.isArray(researchInterests)) {
+                        interestsInput.value = researchInterests.join(', ');
+                    } else {
+                        interestsInput.value = '';
+                    }
+                } else {
+                    interestsInput.value = '';
+                }
+            } else {
+                interestsInput.value = '';
+            }
+        }
+
+        async function saveInterests() {
+            const interests = interestsInput.value.trim();
+            
+            if (!interests) {
+                showMessage('Please enter your research interests.', 'error');
+                return;
+            }
+
+            // Disable save button
+            saveInterestsBtn.disabled = true;
+            const originalText = saveInterestsBtn.querySelector('span').textContent;
+            saveInterestsBtn.querySelector('span').textContent = 'Saving...';
+            clearMessages();
+
+            try {
+                const token = window.AuthService.getToken();
+                console.log('Saving interests:', interests);
+                console.log('API URL:', '/api/users/me/profile');
+                
+                const response = await fetch('/api/users/me/profile', {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        research_interests_text: interests
+                    })
+                });
+                
+                console.log('Save response status:', response.status);
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+                }
+
+                const updatedProfile = await response.json();
+                console.log('Updated profile received:', updatedProfile);
+                console.log('New research_interests_text field:', updatedProfile.research_interests_text);
+                
+                currentProfile = updatedProfile;
+                displayProfile(currentProfile);
+                
+                // Exit edit mode
+                cancelInterestsEdit();
+                showMessage('Research interests updated successfully!', 'success');
+
+            } catch (error) {
+                console.error('Error updating research interests:', error);
+                showMessage(error.message || 'Failed to update research interests. Please try again.', 'error');
+            } finally {
+                saveInterestsBtn.disabled = false;
+                saveInterestsBtn.querySelector('span').textContent = originalText;
+            }
+        }
+
+        // Test function to debug API data
+        async function testProfileAPI() {
+            console.log('Testing profile API...');
+            try {
+                const token = window.AuthService.getToken();
+                console.log('Using token:', token ? token.substring(0, 50) + '...' : 'No token');
+                
+                const response = await fetch('/api/users/me', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                console.log('API Response status:', response.status);
+                console.log('API Response headers:', Object.fromEntries(response.headers.entries()));
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('API Error response:', errorText);
+                    alert(`API Error: ${response.status} - ${errorText}`);
+                    return;
+                }
+
+                const data = await response.json();
+                console.log('Raw API Response:', data);
+                console.log('All possible interest fields:', {
+                    research_interests_text: data.research_interests_text,
+                    interests_description: data.interests_description,
+                    research_interests: data.research_interests,
+                    researchInterests: data.researchInterests,
+                    interests: data.interests
+                });
+                
+                alert(`API测试成功！请查看控制台获取详细数据。\n状态: ${response.status}\n数据字段数: ${Object.keys(data).length}`);
+                
+            } catch (error) {
+                console.error('API Test error:', error);
+                alert(`API测试失败: ${error.message}`);
+            }
+        }
+
+        // Make functions globally available for onclick handlers
+        window.toggleInterestsEdit = toggleInterestsEdit;
+        window.cancelInterestsEdit = cancelInterestsEdit;
+        window.saveInterests = saveInterests;
+        window.testProfileAPI = testProfileAPI;
+    </script>
+</body>
+</html>

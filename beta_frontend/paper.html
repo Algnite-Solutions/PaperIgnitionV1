@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paper Detail - PaperIgnition</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@300;400;500;600;700&family=Rubik:wght@300;400;500;600&display=swap" rel="stylesheet">
+    
+    <!-- Markdown rendering libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
+    
+    <!-- Math formula rendering -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css" integrity="sha384-GvrOXuhMATgEsSwCs4smul74iXGOixntILdUW9XmUC6+HX0sLNAK3q71HotJqlAn" crossorigin="anonymous">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js" integrity="sha384-cpW21h6RZv/phavutF+AuVYrr+dA8xD9zs6FwLpaCct6O9ctzYFfFr4dgmgccOTx" crossorigin="anonymous"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js" integrity="sha384-+VBxd3r6XgURycqtZ117nYw44OOcIax56Z4dCRWbxyPt0Koah1uHoK0o4+/RRE05" crossorigin="anonymous"></script>
+    
+    <!-- Code syntax highlighting -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/highlight.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-color: #ffffff;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666666;
+            --text-muted: #999999;
+            --border-color: #e5e5e5;
+            --accent-red: #dc2626;
+            --hover-bg: #f8f9fa;
+            --card-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            --max-width: 800px;
+        }
+
+        body {
+            font-family: 'Noto Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            line-height: 1.7;
+        }
+
+        .container {
+            max-width: var(--max-width);
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        /* Header */
+        .header {
+            border-bottom: 1px solid var(--border-color);
+            padding: 16px 0;
+            margin-bottom: 32px;
+        }
+
+        .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .back-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s ease;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            font-family: inherit;
+        }
+
+        .back-btn:hover {
+            color: var(--text-primary);
+        }
+
+        .logo {
+            font-family: 'Rubik', sans-serif;
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--text-primary);
+            text-decoration: none;
+        }
+
+        .logo .highlight {
+            color: var(--accent-red);
+        }
+
+        /* Paper Header */
+        .paper-header {
+            margin-bottom: 32px;
+            padding-bottom: 24px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .paper-title {
+            font-size: 28px;
+            font-weight: 700;
+            line-height: 1.3;
+            margin-bottom: 16px;
+            color: var(--text-primary);
+        }
+
+        .paper-authors {
+            font-size: 16px;
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+        }
+
+        .paper-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            font-size: 14px;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+        }
+
+        .paper-tags {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .tag {
+            background-color: var(--hover-bg);
+            color: var(--text-secondary);
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            border: 1px solid var(--border-color);
+            font-weight: 500;
+        }
+
+        .paper-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .action-btn {
+            padding: 10px 20px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-color);
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+
+        .action-btn:hover {
+            border-color: var(--accent-red);
+            color: var(--accent-red);
+        }
+
+        .action-btn.primary {
+            background-color: var(--accent-red);
+            border-color: var(--accent-red);
+            color: white;
+        }
+
+        .action-btn.primary:hover {
+            background-color: #b91c1c;
+        }
+
+        /* Paper Content */
+        .paper-content {
+            margin-bottom: 40px;
+        }
+
+        .section-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: var(--text-primary);
+        }
+
+        .abstract {
+            font-size: 16px;
+            line-height: 1.7;
+            color: var(--text-secondary);
+            background-color: var(--hover-bg);
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 32px;
+        }
+
+        .content {
+            font-size: 16px;
+            line-height: 1.8;
+        }
+
+        .content h2 {
+            font-size: 22px;
+            font-weight: 600;
+            margin: 32px 0 16px 0;
+            color: var(--text-primary);
+        }
+
+        .content h3 {
+            font-size: 18px;
+            font-weight: 600;
+            margin: 24px 0 12px 0;
+            color: var(--text-primary);
+        }
+
+        .content p {
+            margin-bottom: 16px;
+            color: var(--text-secondary);
+        }
+
+        .content strong {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .content code {
+            background-color: var(--hover-bg);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 14px;
+        }
+
+        .content ul, .content ol {
+            margin-left: 24px;
+            margin-bottom: 16px;
+        }
+
+        .content li {
+            margin-bottom: 8px;
+        }
+
+        /* Enhanced markdown content styles */
+        .content table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            box-shadow: var(--card-shadow);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .content th,
+        .content td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .content th {
+            background-color: var(--hover-bg);
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .content tr:hover {
+            background-color: var(--hover-bg);
+        }
+
+        .content tr:last-child td {
+            border-bottom: none;
+        }
+
+        .content blockquote {
+            border-left: 4px solid var(--accent-red);
+            margin: 20px 0;
+            padding: 16px 20px;
+            background-color: var(--hover-bg);
+            border-radius: 0 8px 8px 0;
+            font-style: italic;
+            color: var(--text-secondary);
+        }
+
+        .content pre {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 16px;
+            overflow-x: auto;
+            margin: 16px 0;
+            border: 1px solid var(--border-color);
+        }
+
+        .content pre code {
+            background: none;
+            padding: 0;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        /* Math formulas */
+        .content .katex {
+            font-size: 1.1em;
+        }
+
+        .content .katex-display {
+            margin: 20px 0;
+            padding: 16px;
+            background-color: var(--hover-bg);
+            border-radius: 8px;
+            border-left: 4px solid var(--accent-red);
+        }
+
+        /* Code highlighting */
+        .content .hljs {
+            background: #f8f9fa !important;
+            color: var(--text-primary);
+        }
+
+        /* Image styles */
+        .content img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            margin: 16px 0;
+            box-shadow: var(--card-shadow);
+        }
+
+        /* Horizontal rule */
+        .content hr {
+            border: none;
+            height: 1px;
+            background-color: var(--border-color);
+            margin: 32px 0;
+        }
+
+        /* Loading state */
+        .loading {
+            text-align: center;
+            padding: 60px 20px;
+        }
+
+        .spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid var(--border-color);
+            border-top: 3px solid var(--accent-red);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .paper-title {
+                font-size: 24px;
+            }
+            
+            .paper-actions {
+                flex-direction: column;
+            }
+            
+            .action-btn {
+                text-align: center;
+            }
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #0f0f0f;
+            --text-primary: #ffffff;
+            --text-secondary: #cccccc;
+            --text-muted: #888888;
+            --border-color: #2a2a2a;
+            --hover-bg: #1a1a1a;
+        }
+
+        /* Dark theme enhancements */
+        [data-theme="dark"] .content th {
+            background-color: #1a1a1a;
+            color: #ffffff;
+        }
+
+        [data-theme="dark"] .content pre {
+            background-color: #1a1a1a;
+            border-color: #2a2a2a;
+        }
+
+        [data-theme="dark"] .content .hljs {
+            background: #1a1a1a !important;
+            color: #cccccc;
+        }
+
+        [data-theme="dark"] .content blockquote {
+            background-color: #1a1a1a;
+            color: #cccccc;
+        }
+
+        [data-theme="dark"] .content .katex-display {
+            background-color: #1a1a1a;
+        }
+
+        /* Footer */
+        .footer {
+            border-top: 1px solid var(--border-color);
+            padding: 24px 0;
+            margin-top: 60px;
+            text-align: center;
+        }
+
+        .footer-content {
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        .footer-content a {
+            color: var(--text-muted);
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+
+        .footer-content a:hover {
+            color: var(--text-primary);
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <button onclick="window.close()" class="back-btn">× Close</button>
+                <a href="index.html" class="logo">Paper<span class="highlight">Ignition</span></a>
+            </div>
+        </div>
+    </header>
+
+    <main class="container">
+        <div id="loadingIndicator" class="loading">
+            <div class="spinner"></div>
+            <p>Loading paper details...</p>
+        </div>
+
+        <article id="paperDetail" style="display: none;">
+            <!-- Paper content will be loaded here -->
+        </article>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <p>© 2025 PaperIgnition | <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">浙ICP备2025200330号</a></p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // API Configuration - use relative URLs to proxy through frontend server
+
+        // Get paper ID and username from URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const paperId = urlParams.get('id');
+        const username = urlParams.get('username');
+
+        if (!paperId) {
+            document.getElementById('loadingIndicator').innerHTML = '<p>No paper ID provided</p>';
+        }
+
+        // State variables
+        let currentPaper = null;
+        let paperContent = null;
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', () => {
+            loadPaperDetail();
+        });
+
+        async function loadPaperDetail() {
+            if (!paperId) {
+                showError('No paper ID provided');
+                return;
+            }
+
+            try {
+                // Get paper basic info from main page data or API
+                await loadPaperInfo();
+                
+                // Load paper content from backend
+                await loadPaperContent();
+                
+                // Render the complete paper detail
+                renderPaperDetail();
+                
+                document.getElementById('loadingIndicator').style.display = 'none';
+                document.getElementById('paperDetail').style.display = 'block';
+                
+            } catch (error) {
+                console.error('Error loading paper detail:', error);
+                showError('Failed to load paper content. Please try again.');
+        }
+        }
+
+        async function loadPaperInfo() {
+            // TODO: Fix this to not use sessionStorage in future
+            // Try to get paper info from sessionStorage (passed from main page)
+            const storedPaper = sessionStorage.getItem(`paper_${paperId}`);
+            if (storedPaper) {
+                currentPaper = JSON.parse(storedPaper);
+                return;
+            }
+
+            // Get PDF URL from share parameters if available
+            const pdfUrlFromShare = urlParams.get('pdfUrl');
+
+            response = await fetch(`/get_metadata/${encodeURIComponent(paperId)}`);
+            if (response.ok) {
+                const text = await response.text();
+                const metadata = JSON.parse(text);
+                currentPaper = {
+                    id: paperId,
+                    title: metadata.title || 'Unknown Title',
+                    authors: metadata.authors || [],
+                    publishDate: metadata.published_date || '',
+                    url: metadata.url || pdfUrlFromShare || ''  // Use PDF from metadata or share URL
+                };
+            } else {
+                // Fallback to minimal paper object with PDF URL from share
+                currentPaper = {
+                    id: paperId,
+                    title: 'Loading...',
+                    authors: [],
+                    publishDate: '',
+                    url: pdfUrlFromShare || '',  // Use PDF URL from share if available
+                };
+            }
+        }
+
+        async function loadPaperContent() {
+            try {
+                // Determine which API to call based on username parameter
+                let response;
+                if (username) {
+                    // Recommended paper - load blog content
+                    console.log(`Loading blog content for paper ${paperId}, user ${username}`);
+                    response = await fetch(`/api/digests/blog_content/${encodeURIComponent(paperId)}/${encodeURIComponent(username)}`);
+                    // If blog not found, fall back to full paper
+                    if (!response.ok && response.status === 404) {
+                        console.log('Blog content not found, falling back to full paper');
+                        response = await fetch(`/paper_content/${encodeURIComponent(paperId)}`);
+                    }
+                } else {
+                    // Searched paper - load full paper content
+                    console.log(`Loading full paper content for paper ${paperId}`);
+                    response = await fetch(`/paper_content/${encodeURIComponent(paperId)}`);
+                }
+
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        throw new Error('Paper content not found');
+                    }
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                // The backend returns the content as plain text (markdown string)
+                paperContent = await response.text();
+
+                // If the response is JSON-wrapped, parse it
+                try {
+                    const jsonData = JSON.parse(paperContent);
+                    if (typeof jsonData === 'string') {
+                        paperContent = jsonData;
+                    }
+                } catch (e) {
+                    // Content is already plain text, keep as is
+                }
+
+            } catch (error) {
+                console.error('Error loading paper content:', error);
+                paperContent = `## Error Loading Content\n\n${error.message}\n\nPlease try again later.`;
+            }
+        }
+
+        function renderPaperDetail() {
+            const paperDetail = document.getElementById('paperDetail');
+            
+            paperDetail.innerHTML = `
+                <div class="paper-header">
+                    <h1 class="paper-title">${currentPaper.title}</h1>
+                    <p class="paper-authors">${formatAuthors(currentPaper.authors)}</p>
+                    <div class="paper-meta">
+                        <span>Publish Time: ${currentPaper.publishDate ? new Date(currentPaper.publishDate).toLocaleDateString() : "Recent"}</span>
+                        <span>Recommend Time: ${currentPaper.recommendationDate ? new Date(currentPaper.recommendationDate).toLocaleDateString() : "Recent"}</span>
+                    </div>
+                    ${currentPaper.tags && currentPaper.tags.length > 0 ? `
+                    <div class="paper-tags">
+                        ${currentPaper.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}
+                    </div>
+                    ` : ''}
+                    <div class="paper-actions">
+                        <button class="action-btn primary" onclick="toggleBookmark('${currentPaper.id}')">
+                            ${isBookmarked(currentPaper.id) ? '★ Saved' : '☆ Save Paper'}
+                        </button>
+                        ${currentPaper.url ? `<a href="${currentPaper.url}" target="_blank" class="action-btn">PDF</a>` : '<button class="action-btn" disabled>PDF</button>'}
+                        <button class="action-btn" onclick="sharePaper()">Share</button>
+                    </div>
+                </div>
+
+                <div class="paper-content">
+                    <div class="content" id="paperContentDiv">${formatMarkdown(paperContent)}</div>
+                </div>
+            `;
+            
+            // Update page title
+            document.title = `${currentPaper.title} - PaperIgnition`;
+            
+            // Render math formulas after content is loaded and DOM is updated
+            setTimeout(() => {
+                renderMathFormulas();
+            }, 100);
+        }
+
+        function formatMarkdown(content) {
+            if (!content) return '<p>No content available</p>';
+            
+            try {
+                // Configure marked options
+                marked.setOptions({
+                    breaks: true,
+                    gfm: true, // GitHub Flavored Markdown (supports tables)
+                    headerIds: true,
+                    mangle: false,
+                    sanitize: false,
+                    smartypants: true,
+                    highlight: function(code, lang) {
+                        if (lang && hljs.getLanguage(lang)) {
+                            try {
+                                return hljs.highlight(code, { language: lang }).value;
+                            } catch (err) {
+                                console.error('Highlight.js error:', err);
+                            }
+                        }
+                        return hljs.highlightAuto(code).value;
+                    }
+                });
+
+                // Render markdown to HTML
+                const html = marked.parse(content);
+                
+                return html;
+            } catch (error) {
+                console.error('Markdown parsing error:', error);
+                // Fallback to simple formatting if marked fails
+            return content
+                .replace(/### (.*$)/gim, '<h3>$1</h3>')
+                .replace(/## (.*$)/gim, '<h2>$1</h2>')
+                    .replace(/# (.*$)/gim, '<h1>$1</h1>')
+                    .replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>')
+                    .replace(/\*(.*?)\*/gim, '<em>$1</em>')
+                    .replace(/`([^`]+)`/gim, '<code>$1</code>')
+                    .replace(/\n\n+/gim, '</p><p>')
+                    .replace(/\n/gim, '<br>')
+                    .replace(/^/, '<p>')
+                    .replace(/$/, '</p>');
+            }
+        }
+
+        function renderMathFormulas() {
+            // Render math formulas using KaTeX
+            if (window.renderMathInElement) {
+                const content = document.getElementById('paperContentDiv');
+                if (content) {
+                    renderMathInElement(content, {
+                        delimiters: [
+                            {left: '$$', right: '$$', display: true},
+                            {left: '$', right: '$', display: false},
+                            {left: '\\(', right: '\\)', display: false},
+                            {left: '\\[', right: '\\]', display: true}
+                        ],
+                        throwOnError: false,
+                        errorColor: '#cc0000',
+                        strict: false
+                    });
+                }
+            }
+        }
+
+        function isBookmarked(paperId) {
+            const bookmarks = JSON.parse(localStorage.getItem('bookmarkedPapers') || '[]');
+            return bookmarks.includes(paperId);
+        }
+
+        async function toggleBookmark(paperId) {
+            const button = document.querySelector('.action-btn.primary');
+            const isLoggedIn = window.AuthService && window.AuthService.isLoggedIn();
+
+            console.log('toggleBookmark called with paperId:', paperId, isLoggedIn);
+
+            if (!isLoggedIn) {
+                showErrorMessage('Please log in to save papers');
+                return;
+            }
+
+            // Logged in - use API
+            let bookmarks = JSON.parse(localStorage.getItem('bookmarkedPapers') || '[]');
+            const isCurrentlyFavorited = bookmarks.includes(paperId);
+
+            console.log('Currently favorited:', isCurrentlyFavorited);
+
+            // Show loading state
+            const originalText = button.innerHTML;
+            button.disabled = true;
+            button.innerHTML = isCurrentlyFavorited ? 'Removing...' : 'Adding...';
+            button.style.opacity = '0.6';
+
+            try {
+                const token = window.AuthService.getToken();
+                console.log('Token available:', !!token);
+
+                if (!token) {
+                    throw new Error('No authentication token available');
+                }
+
+                if (isCurrentlyFavorited) {
+                    // Remove from favorites
+                    console.log('Calling DELETE /api/favorites/remove/', paperId);
+                    const response = await fetch(`/api/favorites/remove/${encodeURIComponent(paperId)}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+
+                    console.log('DELETE response status:', response.status);
+
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+                        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+                    }
+
+                    // Update local state
+                    bookmarks = bookmarks.filter(id => id !== paperId);
+                    localStorage.setItem('bookmarkedPapers', JSON.stringify(bookmarks));
+
+                    button.innerHTML = '☆ Save Paper';
+                    showSuccessMessage('Removed from favorites');
+
+                } else {
+                    // Add to favorites
+                    console.log('Calling POST /api/favorites/add');
+
+                    const authorsStr = Array.isArray(currentPaper.authors) ? currentPaper.authors.join(', ') : currentPaper.authors;
+
+                    const cleanAbstract = (currentPaper.abstract || '')
+                        .replace(/\r\n/g, '\n')
+                        .replace(/[""]/g, '"')
+                        .replace(/['']/g, "'")
+                        .replace(/…/g, '...')
+                        .trim();
+
+                    const favoriteData = {
+                        paper_id: String(currentPaper.id).substring(0, 50),
+                        title: String(currentPaper.title).substring(0, 255),
+                        authors: String(authorsStr).substring(0, 255),
+                        abstract: cleanAbstract
+                    };
+
+                    if (currentPaper.url && /^https?:\/\//i.test(String(currentPaper.url))) {
+                        favoriteData.url = String(currentPaper.url).substring(0, 255);
+                    }
+
+                    console.log('Sending favorite data:', favoriteData);
+
+                    const response = await fetch(`/api/favorites/add`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify(favoriteData)
+                    });
+
+                    console.log('POST response status:', response.status);
+
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+
+                        if (response.status === 400 && errorData.detail?.includes('已在收藏')) {
+                            // Already favorited
+                            bookmarks.push(paperId);
+                            localStorage.setItem('bookmarkedPapers', JSON.stringify(bookmarks));
+                            button.innerHTML = '★ Saved';
+                            showSuccessMessage('Already in favorites');
+                            return;
+                        }
+
+                        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+                    }
+
+                    // Update local state
+                    bookmarks.push(paperId);
+                    localStorage.setItem('bookmarkedPapers', JSON.stringify(bookmarks));
+
+                    button.innerHTML = '★ Saved';
+                    showSuccessMessage('Added to favorites');
+                }
+
+            } catch (error) {
+                console.error('Error toggling favorite:', error);
+
+                // Restore original state
+                button.innerHTML = originalText;
+
+                showErrorMessage(`Failed to ${isCurrentlyFavorited ? 'remove from' : 'add to'} favorites: ${error.message}`);
+
+            } finally {
+                // Restore button state
+                button.disabled = false;
+                button.style.opacity = '1';
+            }
+        }
+
+        function showSuccessMessage(message) {
+            const successDiv = document.createElement('div');
+            successDiv.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: #10b981;
+                color: white;
+                padding: 12px 20px;
+                border-radius: 8px;
+                z-index: 1000;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            `;
+            successDiv.textContent = message;
+
+            document.body.appendChild(successDiv);
+
+            setTimeout(() => {
+                if (document.body.contains(successDiv)) {
+                    document.body.removeChild(successDiv);
+                }
+            }, 2000);
+        }
+
+        function showErrorMessage(message) {
+            const errorDiv = document.createElement('div');
+            errorDiv.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: #ef4444;
+                color: white;
+                padding: 12px 20px;
+                border-radius: 8px;
+                z-index: 1000;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            `;
+            errorDiv.textContent = message;
+
+            document.body.appendChild(errorDiv);
+
+            setTimeout(() => {
+                if (document.body.contains(errorDiv)) {
+                    document.body.removeChild(errorDiv);
+                }
+            }, 3000);
+        }
+
+        async function sharePaper() {
+            // Build share URL with PDF URL included
+            const urlParams = new URLSearchParams(window.location.search);
+            const shareUrl = new URL(window.location.href);
+
+            // Add PDF URL to parameters if available
+            if (currentPaper.url) {
+                shareUrl.searchParams.set('pdfUrl', currentPaper.url);
+            }
+
+            try {
+                // Copy the share URL to clipboard
+                await navigator.clipboard.writeText(shareUrl.href);
+
+                // Show success message popup with the link
+                showShareSuccessMessage(shareUrl.href);
+            } catch (error) {
+                console.error('Error copying to clipboard:', error);
+
+                // Fallback: try using older method
+                try {
+                    const textArea = document.createElement('textarea');
+                    textArea.value = pageUrl;
+                    textArea.style.position = 'fixed';
+                    textArea.style.left = '-999999px';
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textArea);
+
+                    showShareSuccessMessage(pageUrl);
+                } catch (fallbackError) {
+                    console.error('Fallback copy failed:', fallbackError);
+                    showErrorMessage('Failed to copy link to clipboard');
+                }
+            }
+        }
+
+        function showShareSuccessMessage(url) {
+            const successDiv = document.createElement('div');
+            successDiv.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: #10b981;
+                color: white;
+                padding: 16px 20px;
+                border-radius: 8px;
+                z-index: 1000;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                max-width: 400px;
+                word-wrap: break-word;
+            `;
+            successDiv.innerHTML = `
+                <div style="font-weight: 600; margin-bottom: 8px;">✓ Paper link copied to clipboard!</div>
+                <div style="font-size: 12px; opacity: 0.9; font-family: monospace;">${url}</div>
+            `;
+
+            document.body.appendChild(successDiv);
+
+            setTimeout(() => {
+                if (document.body.contains(successDiv)) {
+                    document.body.removeChild(successDiv);
+                }
+            }, 3000);
+        }
+
+        function showError(message) {
+            document.getElementById('loadingIndicator').innerHTML = `
+                <p style="color: var(--accent-red);">${message}</p>
+                <a href="index.html" class="action-btn">← Back to Papers</a>
+            `;
+        }
+
+        /**
+         * Format authors list - max 6 authors, then "et al"
+         * @param {Array|string} authors - Authors array or string
+         * @returns {string} Formatted authors string
+         */
+        function formatAuthors(authors) {
+            if (!authors) return 'Unknown authors';
+
+            // Convert to array if string
+            const authorsArray = Array.isArray(authors) ? authors : authors.split(', ');
+
+            // Show max 6 authors
+            const maxAuthors = 6;
+            if (authorsArray.length <= maxAuthors) {
+                return authorsArray.join(', ');
+            }
+
+            // Show first 6 + "et al"
+            return authorsArray.slice(0, maxAuthors).join(', ') + ', et al.';
+        }
+    </script>
+    <script type="module" src="./js/auth.js"></script>
+</body>
+</html>

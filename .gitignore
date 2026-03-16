@@ -1,0 +1,28 @@
+# Environment & secrets
+.env
+.env.dev
+.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Runtime / generated
+orchestrator/html_url_storage/
+orchestrator/blogsByGemini/
+orchestrator/jsons/
+orchestrator/htmls/
+orchestrator/pdfs/
+orchestrator/imgs/
+*.log

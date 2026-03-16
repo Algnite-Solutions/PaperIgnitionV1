@@ -1,0 +1,79 @@
+backend_service:
+  host: ${APP_SERVICE_HOST}
+
+paper_pull:
+  max_workers: 8
+  time_slots_count: 3
+  location: cloud
+  count_delay: 2
+  max_papers: null
+  lazy_mode: true  # metadata only on fetch; extract content only for recommended papers
+
+blog_generation:
+  output_path: orchestrator/blogsByGemini
+
+user_recommendation:
+  top_k: 5
+  retrieve_k: 20
+  similarity_cutoff: 0.1
+  search_strategy: vector
+  search_days: 5
+  customized_recommendation: true
+  use_pdf_reranker: true
+  user_retrieve_result: true
+
+models:
+  blog_generation:
+    model_id: gemini-3.1-flash-lite-preview
+    rate_limits:
+      rpm: 15
+      rpd: 1500
+      warning_threshold: 0.8
+  recommendation:
+    model_id: gemini-3.1-flash-lite-preview
+    rate_limits:
+      rpm: 10
+      rpd: 1000
+      warning_threshold: 0.8
+
+stages:
+  fetch_daily_papers: true
+  generate_per_user_blogs: true
+
+job_execution:
+  enable_parallel_blog_generation: false
+
+constants:
+  store_images_on_index: true
+
+dashscope:
+  api_key: ${DASHSCOPE_API_KEY}
+  base_url: ${DASHSCOPE_BASE_URL}
+  embedding_model: text-embedding-v4
+  embedding_dimension: 1536
+  batch_size: 10
+  delay_between_batches: 0.5
+
+aliyun_rds:
+  enabled: true
+  db_user: ${DB_USER}
+  db_password: ${DB_PASSWORD}
+  db_host: ${DB_HOST}
+  db_port: ${DB_PORT}
+  db_name_paper: ${DB_NAME_PAPER}
+  sslmode: require
+
+aliyun_oss:
+  enabled: true
+  access_key_id: ${ALIYUN_ACCESS_KEY_ID}
+  access_key_secret: ${ALIYUN_ACCESS_KEY_SECRET}
+  endpoint: ${ALIYUN_OSS_ENDPOINT}
+  bucket_name: ${ALIYUN_OSS_BUCKET}
+  upload_prefix: imgs/
+
+storage:
+  keep_blogs: true
+  keep_jsons: false
+  keep_htmls: false
+  keep_pdfs: false
+  keep_imgs: false

@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Favorites - PaperIgnition</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@300;400;500;600;700&family=Rubik:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-color: #ffffff;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666666;
+            --text-muted: #999999;
+            --border-color: #e5e5e5;
+            --accent-red: #dc2626;
+            --hover-bg: #f8f9fa;
+            --card-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            --max-width: 1080px;
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #0f0f0f;
+            --text-primary: #ffffff;
+            --text-secondary: #cccccc;
+            --text-muted: #888888;
+            --border-color: #2a2a2a;
+            --hover-bg: #1a1a1a;
+        }
+
+        body {
+            font-family: 'Noto Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            line-height: 1.6;
+            transition: all 0.2s ease;
+        }
+
+        .container {
+            max-width: var(--max-width);
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        /* Header Styles */
+        .header {
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            background-color: var(--bg-color);
+            z-index: 100;
+        }
+
+        .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 64px;
+        }
+
+        .logo {
+            font-family: 'Rubik', sans-serif;
+            font-size: 24px;
+            font-weight: 600;
+            color: var(--text-primary);
+            text-decoration: none;
+        }
+
+        .logo .highlight {
+            color: var(--accent-red);
+        }
+
+        .nav {
+            display: flex;
+            align-items: center;
+            gap: 32px;
+        }
+
+        .nav a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s ease;
+        }
+
+        .nav a:hover, .nav a.active {
+            color: var(--text-primary);
+        }
+
+        .nav a.active {
+            border-bottom: 2px solid var(--accent-red);
+            padding-bottom: 2px;
+        }
+
+        .search-container {
+            flex: 1;
+            max-width: 400px;
+            margin: 0 40px;
+            position: relative;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 10px 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 14px;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            transition: border-color 0.2s ease;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--accent-red);
+        }
+
+        /* Main Content */
+        .main {
+            padding: 32px 0;
+        }
+
+        .page-header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .page-title {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+        }
+
+        .page-subtitle {
+            color: var(--text-secondary);
+            font-size: 16px;
+        }
+
+        /* Paper List */
+        .papers-grid {
+            display: grid;
+            gap: 24px;
+        }
+
+        .paper-card {
+            display: flex;
+            gap: 16px;
+            padding: 20px;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            background-color: var(--bg-color);
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+
+        .paper-card:hover {
+            box-shadow: var(--card-shadow);
+            border-color: var(--text-muted);
+        }
+
+        .paper-thumbnail {
+            width: 120px;
+            height: 80px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 8px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 12px;
+            text-align: center;
+            font-weight: 500;
+        }
+
+        .paper-content {
+            flex: 1;
+        }
+
+        .paper-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+            line-height: 1.4;
+        }
+
+        .paper-authors {
+            color: var(--text-secondary);
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+
+        .paper-abstract {
+            color: var(--text-secondary);
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 12px;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .paper-meta {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .paper-tags {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .tag {
+            background-color: var(--hover-bg);
+            color: var(--text-secondary);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            border: 1px solid var(--border-color);
+        }
+
+        .paper-actions {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        .bookmark-btn {
+            background: none;
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s ease;
+        }
+
+        .bookmark-btn:hover {
+            border-color: var(--accent-red);
+            color: var(--accent-red);
+        }
+
+        .bookmark-btn.bookmarked {
+            background-color: var(--accent-red);
+            border-color: var(--accent-red);
+            color: white;
+        }
+
+        .remove-btn {
+            background: none;
+            border: 1px solid #ef4444;
+            color: #ef4444;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s ease;
+        }
+
+        .remove-btn:hover {
+            background-color: #ef4444;
+            color: white;
+        }
+
+        /* Loading States */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-muted);
+        }
+
+        .spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid var(--border-color);
+            border-top: 3px solid var(--accent-red);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-muted);
+        }
+
+        .empty-state h3 {
+            font-size: 20px;
+            margin-bottom: 12px;
+            color: var(--text-primary);
+        }
+
+        .empty-state p {
+            margin-bottom: 20px;
+        }
+
+        .empty-state a {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: var(--accent-red);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: background-color 0.2s ease;
+        }
+
+        .empty-state a:hover {
+            background-color: #b91c1c;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                height: auto;
+                padding: 16px 0;
+                gap: 16px;
+            }
+
+            .search-container {
+                max-width: none;
+                margin: 0;
+                order: 3;
+                width: 100%;
+            }
+
+            .nav {
+                gap: 16px;
+            }
+
+            .paper-card {
+                flex-direction: column;
+            }
+
+            .paper-thumbnail {
+                width: 100%;
+                height: 120px;
+            }
+
+            .paper-actions {
+                flex-direction: row;
+                justify-content: space-between;
+                align-items: center;
+            }
+        }
+
+        /* Footer */
+        .footer {
+            border-top: 1px solid var(--border-color);
+            padding: 24px 0;
+            margin-top: 60px;
+            text-align: center;
+        }
+
+        .footer-content {
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        .footer-content a {
+            color: var(--text-muted);
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+
+        .footer-content a:hover {
+            color: var(--text-primary);
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <a href="index.html" class="logo">Paper<span class="highlight">Ignition</span></a>
+                
+                <div class="search-container">
+                    <input type="text" class="search-input" placeholder="Search your favorites..." id="searchInput">
+                </div>
+                
+                <nav class="nav">
+                    <a href="index.html">Explore</a>
+                    <a href="favorites.html" class="active">Favorites</a>
+                    <a href="#profile" id="profileLink">Login</a>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <main class="main">
+        <div class="container">
+            <div class="page-header">
+                <h1 class="page-title">My Favorite Papers</h1>
+                <p class="page-subtitle">Papers you've saved for later reading</p>
+            </div>
+
+            <div id="favoritesContainer" class="papers-grid">
+                <!-- Favorite papers will be loaded here -->
+            </div>
+            
+            <div id="loadingIndicator" class="loading" style="display: none;">
+                <div class="spinner"></div>
+                <p>Loading your favorites...</p>
+            </div>
+
+            <div id="emptyState" class="empty-state" style="display: none;">
+                <h3>No favorites yet</h3>
+                <p>Start building your collection by saving papers you find interesting.</p>
+                <a href="index.html">Explore Papers</a>
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <p>© 2025 PaperIgnition | <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">浙ICP备2025200330号</a></p>
+            </div>
+        </div>
+    </footer>
+
+    <script type="module" src="./js/auth.js"></script>
+    <script>
+        // API Configuration
+
+        // State management
+        let favoritePapers = [];
+        let isLoading = false;
+        let searchQuery = '';
+
+        // DOM elements
+        const favoritesContainer = document.getElementById('favoritesContainer');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const emptyState = document.getElementById('emptyState');
+        const searchInput = document.getElementById('searchInput');
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeFavorites();
+            setupEventListeners();
+            setupAuthNavigation();
+        });
+
+        function initializeFavorites() {
+            // Check if user is logged in
+            if (window.AuthService && window.AuthService.isLoggedIn()) {
+                loadFavorites();
+            } else {
+                showLoginPrompt();
+            }
+        }
+
+        function setupEventListeners() {
+            // Search functionality
+            searchInput.addEventListener('input', debounce(handleSearch, 300));
+        }
+
+        async function loadFavorites() {
+            if (isLoading) return;
+            
+            isLoading = true;
+            showLoading();
+            
+            try {
+                console.log('Loading favorites...');
+                console.log('AuthService available:', !!window.AuthService);
+                console.log('User logged in:', window.AuthService ? window.AuthService.isLoggedIn() : false);
+                
+                const currentUser = window.AuthService ? window.AuthService.getCurrentUser() : null;
+                console.log('Current user:', currentUser);
+                
+                const token = window.AuthService.getToken();
+                console.log('Token available:', !!token);
+                console.log('Token length:', token ? token.length : 0);
+                console.log('Token preview:', token ? token.substring(0, 50) + '...' : 'null');
+                
+                if (!token) {
+                    throw new Error('No authentication token available');
+                }
+                
+                // 直接使用原来的favorites/list接口
+                console.log('Calling favorites/list API...');
+                const response = await fetch('/api/favorites/list', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                console.log('Response status:', response.status);
+                console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+                
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    console.log('Error response data:', errorData);
+                    
+                    // 如果是500错误，可能是数据库问题或者用户没有收藏记录
+                    if (response.status === 500) {
+                        console.log('500 error detected, showing test options');
+                        // 显示带有测试功能的错误信息
+                        showErrorMessage('收藏列表加载失败，可能是数据库问题。点击"测试收藏功能"来诊断问题。');
+                        return;
+                    }
+                    
+                    throw new Error(`HTTP error! status: ${response.status}, detail: ${errorData.detail || 'Unknown error'}`);
+                }
+                
+                const favorites = await response.json();
+                console.log('Favorites data loaded:', favorites);
+                
+                // 验证数据格式
+                if (!Array.isArray(favorites)) {
+                    console.error('Invalid favorites data format:', favorites);
+                    favoritePapers = [];
+                    renderFavorites();
+                    return;
+                }
+                
+                // Transform API data to match frontend format
+                favoritePapers = favorites.map(fav => ({
+                    id: fav.paper_id || fav.id || fav, // 支持不同的数据格式
+                    title: fav.title || `Paper ${fav.paper_id || fav.id || fav}`,
+                    authors: fav.authors || 'Unknown Authors',
+                    abstract: fav.abstract || 'No abstract available',
+                    url: fav.url || null,
+                    tags: [], // Default tags
+                    submittedDate: 'Saved',
+                    publishDate: '',
+                    comments: '',
+                    thumbnail: '📄'
+                }));
+                
+                console.log('Transformed papers:', favoritePapers);
+                
+                renderFavorites();
+                
+            } catch (error) {
+                console.error('Error loading favorites:', error);
+                showErrorMessage(`Failed to load favorites: ${error.message}`);
+                
+            } finally {
+                isLoading = false;
+                hideLoading();
+            }
+        }
+
+        function renderFavorites() {
+            const filteredPapers = searchQuery 
+                ? favoritePapers.filter(paper => 
+                    paper.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    paper.abstract.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    (typeof paper.authors === 'string' 
+                        ? paper.authors.toLowerCase().includes(searchQuery.toLowerCase())
+                        : paper.authors.some(author => author.toLowerCase().includes(searchQuery.toLowerCase())))
+                )
+                : favoritePapers;
+
+            if (filteredPapers.length === 0) {
+                if (searchQuery) {
+                    favoritesContainer.innerHTML = '<div class="loading"><p>No favorites found matching your search.</p></div>';
+                } else {
+                    showEmptyState();
+                }
+                return;
+            }
+
+            favoritesContainer.innerHTML = '';
+            
+            filteredPapers.forEach(paper => {
+                const paperElement = createFavoritePaperCard(paper);
+                favoritesContainer.appendChild(paperElement);
+            });
+        }
+
+        function createFavoritePaperCard(paper) {
+            const card = document.createElement('article');
+            card.className = 'paper-card';
+            card.dataset.paperId = paper.id;
+            
+            card.innerHTML = `
+                <div class="paper-thumbnail">
+                    ${paper.thumbnail}
+                </div>
+                <div class="paper-content">
+                    <h2 class="paper-title">${paper.title}</h2>
+                    <p class="paper-authors">${formatAuthors(paper.authors)}</p>
+                    <p class="paper-abstract">${paper.abstract}</p>
+                    <div class="paper-meta">
+                        <span>${paper.publishDate}</span>
+                        <span>•</span>
+                        <span>${paper.comments}</span>
+                    </div>
+                    <div class="paper-tags">
+                        ${paper.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}
+                    </div>
+                </div>
+                <div class="paper-actions">
+                    <button class="remove-btn" onclick="removeFavorite('${paper.id}', event)">
+                        Remove
+                    </button>
+                </div>
+            `;
+            
+            // Add click handler for paper details
+            card.addEventListener('click', (e) => {
+                if (!e.target.classList.contains('remove-btn')) {
+                    showPaperDetail(paper);
+                }
+            });
+            
+            return card;
+        }
+
+        async function removeFavorite(paperId, event) {
+            event.stopPropagation();
+            
+            if (!confirm('Remove this paper from your favorites?')) {
+                return;
+            }
+            
+            try {
+                const token = window.AuthService.getToken();
+                const response = await fetch(`/api/favorites/remove/${encodeURIComponent(paperId)}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                // Remove from local array
+                favoritePapers = favoritePapers.filter(paper => paper.id !== paperId);
+                
+                // Re-render
+                renderFavorites();
+                
+                // Show success message
+                showSuccessMessage('Paper removed from favorites');
+                
+            } catch (error) {
+                console.error('Error removing favorite:', error);
+                alert('Failed to remove favorite. Please try again.');
+            }
+        }
+
+        function showPaperDetail(paper) {
+            if (!paper) return;
+
+            // Store paper information in sessionStorage for the detail page
+            sessionStorage.setItem(`paper_${paper.id}`, JSON.stringify(paper));
+
+            // Get current username for recommended papers
+            const currentUser = window.AuthService?.getCurrentUser();
+            const username = currentUser?.username;
+
+            // Open paper detail page in new tab
+            // Favorited papers are recommended papers, so include username for blog_content
+            const url = username
+                ? `paper.html?id=${paper.id}&username=${encodeURIComponent(username)}`
+                : `paper.html?id=${paper.id}`;
+            window.open(url, '_blank');
+        }
+
+        function handleSearch(event) {
+            searchQuery = event.target.value.trim();
+            renderFavorites();
+        }
+
+        function showLoading() {
+            loadingIndicator.style.display = 'block';
+            favoritesContainer.style.display = 'none';
+            emptyState.style.display = 'none';
+        }
+
+        function hideLoading() {
+            loadingIndicator.style.display = 'none';
+            favoritesContainer.style.display = 'grid';
+        }
+
+        function showEmptyState() {
+            favoritesContainer.style.display = 'none';
+            emptyState.style.display = 'block';
+        }
+
+        function showLoginPrompt() {
+            favoritesContainer.innerHTML = `
+                <div class="empty-state">
+                    <h3>Please Login</h3>
+                    <p>You need to be logged in to view your favorite papers.</p>
+                    <a href="login.html">Login</a>
+                </div>
+            `;
+        }
+
+        function showErrorMessage(message) {
+            favoritesContainer.innerHTML = `
+                <div class="loading">
+                    <p style="color: var(--accent-red);">${message}</p>
+                    <div style="margin-top: 20px;">
+                        <button onclick="testFavoritesAPI()" style="padding: 10px 20px; background: var(--accent-red); color: white; border: none; border-radius: 5px; cursor: pointer;">
+                            测试收藏功能
+                        </button>
+                        <button onclick="location.reload()" style="padding: 10px 20px; background: #666; color: white; border: none; border-radius: 5px; cursor: pointer; margin-left: 10px;">
+                            重新加载
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // 测试收藏API功能
+        async function testFavoritesAPI() {
+            console.log('Testing favorites API...');
+            try {
+                const token = window.AuthService.getToken();
+                
+                // 首先尝试添加一个测试收藏
+                const testPaper = {
+                    paper_id: 'test_paper_' + Date.now(),
+                    title: 'Test Paper for API Testing',
+                    authors: 'Test Author',
+                    abstract: 'This is a test paper to verify the favorites API functionality.',
+                    url: null
+                };
+                
+                console.log('Adding test paper:', testPaper);
+                const addResponse = await fetch('/api/favorites/add', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(testPaper)
+                });
+                
+                console.log('Add response status:', addResponse.status);
+                
+                if (addResponse.ok) {
+                    console.log('Test paper added successfully');
+                    // 等待一下然后重新加载收藏列表
+                    setTimeout(() => {
+                        loadFavorites();
+                    }, 1000);
+                } else {
+                    const errorData = await addResponse.json().catch(() => ({}));
+                    console.error('Failed to add test paper:', errorData);
+                    alert(`添加测试论文失败: ${errorData.detail || 'Unknown error'}`);
+                }
+                
+            } catch (error) {
+                console.error('Test API error:', error);
+                alert(`测试API时出错: ${error.message}`);
+            }
+        }
+
+        function showSuccessMessage(message) {
+            // Create temporary success message
+            const successDiv = document.createElement('div');
+            successDiv.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: #10b981;
+                color: white;
+                padding: 12px 20px;
+                border-radius: 8px;
+                z-index: 1000;
+                animation: slideInRight 0.3s ease;
+            `;
+            successDiv.textContent = message;
+            
+            document.body.appendChild(successDiv);
+            
+            setTimeout(() => {
+                successDiv.style.animation = 'slideOutRight 0.3s ease';
+                setTimeout(() => {
+                    document.body.removeChild(successDiv);
+                }, 300);
+            }, 2000);
+        }
+
+        // Setup authentication-based navigation
+        function setupAuthNavigation() {
+            const profileLink = document.getElementById('profileLink');
+            
+            if (profileLink) {
+                profileLink.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    handleProfileNavigation();
+                });
+            }
+            
+            // Update navigation based on auth state
+            updateNavigation();
+            
+            // Listen for auth state changes
+            window.addEventListener('authStateChanged', (event) => {
+                updateNavigation();
+                
+                // Reload favorites when auth state changes
+                if (event.detail.isLoggedIn) {
+                    loadFavorites();
+                } else {
+                    showLoginPrompt();
+                }
+            });
+        }
+
+        function handleProfileNavigation() {
+            if (window.AuthService && window.AuthService.isLoggedIn()) {
+                window.location.href = 'profile.html';
+            } else {
+                window.location.href = 'login.html';
+            }
+        }
+
+        function updateNavigation() {
+            const profileLink = document.getElementById('profileLink');
+            if (!profileLink) return;
+            
+            if (window.AuthService && window.AuthService.isLoggedIn()) {
+                const user = window.AuthService.getCurrentUser();
+                profileLink.textContent = user?.username || 'Profile';
+                profileLink.href = 'profile.html';
+            } else {
+                profileLink.textContent = 'Login';
+                profileLink.href = 'login.html';
+            }
+        }
+
+        // Utility function for debouncing
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
+        // Add CSS animations
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideInRight {
+                from { transform: translateX(100%); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+            @keyframes slideOutRight {
+                from { transform: translateX(0); opacity: 1; }
+                to { transform: translateX(100%); opacity: 0; }
+            }
+        `;
+        document.head.appendChild(style);
+
+        /**
+         * Format authors list - max 6 authors, then "et al"
+         * @param {Array|string} authors - Authors array or string
+         * @returns {string} Formatted authors string
+         */
+        function formatAuthors(authors) {
+            if (!authors) return 'Unknown authors';
+
+            // Convert to array if string
+            const authorsArray = Array.isArray(authors) ? authors : authors.split(', ');
+
+            // Show max 6 authors
+            const maxAuthors = 6;
+            if (authorsArray.length <= maxAuthors) {
+                return authorsArray.join(', ');
+            }
+
+            // Show first 6 + "et al"
+            return authorsArray.slice(0, maxAuthors).join(', ') + ', et al.';
+        }
+    </script>
+</body>
+</html> 

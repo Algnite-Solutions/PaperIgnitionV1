@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PaperIgnition - AI-Powered Academic Paper Discovery</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@300;400;500;600;700&family=Rubik:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-color: #ffffff;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666666;
+            --text-muted: #999999;
+            --border-color: #e5e5e5;
+            --accent-red: #dc2626;
+            --hover-bg: #f8f9fa;
+            --card-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            --max-width: 1080px;
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #0f0f0f;
+            --text-primary: #ffffff;
+            --text-secondary: #cccccc;
+            --text-muted: #888888;
+            --border-color: #2a2a2a;
+            --hover-bg: #1a1a1a;
+        }
+
+        body {
+            font-family: 'Noto Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            line-height: 1.6;
+            transition: all 0.2s ease;
+        }
+
+        .container {
+            max-width: var(--max-width);
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        /* Header Styles */
+        .header {
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            background-color: var(--bg-color);
+            z-index: 100;
+        }
+
+        .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 64px;
+        }
+
+        .logo {
+            font-family: 'Rubik', sans-serif;
+            font-size: 24px;
+            font-weight: 600;
+            color: var(--text-primary);
+            text-decoration: none;
+        }
+
+        .logo .highlight {
+            color: var(--accent-red);
+        }
+
+        .nav {
+            display: flex;
+            align-items: center;
+            gap: 32px;
+        }
+
+        .nav a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s ease;
+        }
+
+        .nav a:hover {
+            color: var(--text-primary);
+        }
+
+        .nav a.active {
+            color: var(--text-primary);
+            border-bottom: 2px solid var(--accent-red);
+            padding-bottom: 2px;
+        }
+
+        .search-container {
+            flex: 1;
+            max-width: 400px;
+            margin: 0 40px;
+            position: relative;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 10px 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 14px;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            transition: border-color 0.2s ease;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--accent-red);
+        }
+
+        /* Main Content */
+        .main {
+            padding: 32px 0;
+        }
+
+        /* Paper List */
+        .papers-grid {
+            display: grid;
+            gap: 24px;
+        }
+
+        .no-more-papers {
+            text-align: center;
+            padding: 32px 0;
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        .paper-card {
+            display: flex;
+            gap: 16px;
+            padding: 20px;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            background-color: var(--bg-color);
+            transition: all 0.2s ease;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .paper-card:hover {
+            box-shadow: var(--card-shadow);
+            border-color: var(--text-muted);
+        }
+
+        .paper-thumbnail {
+            width: 120px;
+            height: 80px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 8px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 12px;
+            text-align: center;
+            font-weight: 500;
+        }
+
+        .paper-content {
+            flex: 1;
+        }
+
+        .paper-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 8px;
+            gap: 12px;
+        }
+
+        .paper-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-primary);
+            line-height: 1.4;
+            flex: 1;
+        }
+
+        .viewed-indicator {
+            font-size: 11px;
+            color: var(--accent-red);
+            background-color: rgba(220, 38, 38, 0.1);
+            padding: 2px 6px;
+            border-radius: 4px;
+            flex-shrink: 0;
+            font-weight: 500;
+        }
+
+        .unviewed-indicator {
+            font-size: 11px;
+            color: var(--text-secondary);
+            background-color: var(--hover-bg);
+            padding: 2px 6px;
+            border-radius: 4px;
+            flex-shrink: 0;
+            font-weight: 500;
+        }
+
+        .paper-authors {
+            color: var(--text-secondary);
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+
+        .paper-abstract {
+            color: var(--text-secondary);
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 12px;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .paper-meta {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .paper-link {
+            color: var(--accent-red);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s ease;
+        }
+
+        .paper-link:hover {
+            color: #b91c1c;
+            text-decoration: underline;
+        }
+
+        .paper-tags {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .tag {
+            background-color: var(--hover-bg);
+            color: var(--text-secondary);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            border: 1px solid var(--border-color);
+        }
+
+        .paper-actions {
+            position: absolute;
+            bottom: 8px;
+            right: 8px;
+            display: flex;
+            gap: 2px;
+            background: rgba(255, 255, 255, 0.95);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 2px 4px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+            z-index: 10;
+        }
+
+        .action-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4px;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-radius: 50%;
+            transition: all 0.2s ease;
+        }
+
+        .action-btn:hover {
+            background: var(--hover-bg);
+            transform: scale(1.1);
+        }
+
+        .action-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .action-btn svg {
+            flex-shrink: 0;
+            display: block;
+        }
+
+        .like-btn.active {
+            color: #10b981;
+            background: rgba(16, 185, 129, 0.15);
+        }
+
+        .dislike-btn.active {
+            color: #ef4444;
+            background: rgba(239, 68, 68, 0.15);
+        }
+
+        .favorite-btn.active {
+            color: #f59e0b;
+            background: rgba(245, 158, 11, 0.15);
+        }
+
+        .bookmark-btn {
+            background: none;
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s ease;
+        }
+
+        .bookmark-btn:hover {
+            border-color: var(--accent-red);
+            color: var(--accent-red);
+        }
+
+        .bookmark-btn.bookmarked {
+            background-color: var(--accent-red);
+            border-color: var(--accent-red);
+            color: white;
+        }
+
+        /* Loading States */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-muted);
+        }
+
+        .spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid var(--border-color);
+            border-top: 3px solid var(--accent-red);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        @keyframes slideOutRight {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+
+        .bookmark-btn:disabled {
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .bookmark-btn:hover:not(:disabled) {
+            border-color: var(--accent-red);
+            color: var(--accent-red);
+        }
+
+        .bookmark-btn.bookmarked:hover:not(:disabled) {
+            background-color: #b91c1c;
+        }
+
+        /* Footer */
+        .footer {
+            border-top: 1px solid var(--border-color);
+            padding: 24px 0;
+            margin-top: 60px;
+            text-align: center;
+        }
+
+        .footer-content {
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        .footer-content a {
+            color: var(--text-muted);
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+
+        .footer-content a:hover {
+            color: var(--text-primary);
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                height: auto;
+                padding: 16px 0;
+                gap: 16px;
+            }
+
+            .search-container {
+                max-width: none;
+                margin: 0;
+                order: 3;
+                width: 100%;
+            }
+
+            .nav {
+                gap: 16px;
+            }
+
+            .paper-card {
+                flex-direction: column;
+            }
+
+            .paper-thumbnail {
+                width: 100%;
+                height: 120px;
+            }
+
+            .paper-actions {
+                flex-direction: row;
+                justify-content: space-between;
+                align-items: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <a href="/" class="logo">Paper<span class="highlight">Ignition</span></a>
+                
+                <div class="search-container">
+                    <input type="text" class="search-input" placeholder="Search papers, authors, topics..." id="searchInput">
+                </div>
+                
+                <nav class="nav">
+                    <a href="index.html" class="active">Explore</a>
+                    <a href="favorites.html">Favorites</a>
+                    <a href="#profile" id="profileLink">Login</a>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <main class="main">
+        <div class="container">
+            <div id="papersContainer" class="papers-grid">
+                <!-- Papers will be loaded here -->
+            </div>
+
+            <div id="loadingIndicator" class="loading" style="display: none;">
+                <div class="spinner"></div>
+                <p>Loading more papers...</p>
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <p>© 2025 PaperIgnition | <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">浙ICP备2025200330号</a></p>
+            </div>
+        </div>
+    </footer>
+
+    <script type="module" src="./js/auth.js"></script>
+    <script type="module" src="./js/main.js"></script>
+</body>
+</html>
