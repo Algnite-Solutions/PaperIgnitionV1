@@ -417,25 +417,23 @@
             }
         }
 
-        function handleDemoLogin() {
+        async function handleDemoLogin() {
             setLoading(true, demoBtn);
             clearMessages();
 
-            // Simulate demo login
-            setTimeout(() => {
-                const demoUser = {
-                    email: 'demo@paperignition.com',
-                    username: 'Demo User',
-                    isDemo: true
-                };
-
-                window.AuthService.setUser(demoUser);
-                showSuccess('Demo login successful! Redirecting...');
-                
-                setTimeout(() => {
-                    window.location.href = 'index.html';
-                }, 1500);
-            }, 1000);
+            try {
+                const result = await window.AuthService.login('demo@example.com', 'paperignition_demo');
+                if (result.success) {
+                    showSuccess('Welcome, Demo User!');
+                    setTimeout(() => { window.location.href = 'index.html'; }, 500);
+                } else {
+                    showError(result.error || 'Demo login failed');
+                }
+            } catch (e) {
+                showError('Demo login failed');
+            } finally {
+                setLoading(false, demoBtn);
+            }
         }
 
         function setLoading(loading, button = loginBtn) {

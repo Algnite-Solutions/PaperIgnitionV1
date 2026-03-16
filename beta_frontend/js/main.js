@@ -232,11 +232,35 @@ function showLoginSuggestion() {
         <p style="margin: 0; font-size: 16px;">
             📚 You're viewing sample recommendations.
             <a href="login.html" style="color: #ffd700; font-weight: bold; text-decoration: underline;">Login</a>
+            or
+            <a href="#" id="demoBannerBtn" style="color: #ffd700; font-weight: bold; text-decoration: underline;">Try as Demo User</a>
             to see personalized paper recommendations tailored for you!
         </p>
     `;
 
     papersContainer.insertBefore(banner, papersContainer.firstChild);
+
+    // Attach demo login handler
+    const demoBannerBtn = document.getElementById('demoBannerBtn');
+    if (demoBannerBtn) {
+        demoBannerBtn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            demoBannerBtn.textContent = 'Logging in...';
+            demoBannerBtn.style.pointerEvents = 'none';
+            try {
+                const result = await window.AuthService.login('demo@example.com', 'paperignition_demo');
+                if (result.success) {
+                    window.location.reload();
+                } else {
+                    demoBannerBtn.textContent = 'Failed - Try again';
+                    demoBannerBtn.style.pointerEvents = 'auto';
+                }
+            } catch (err) {
+                demoBannerBtn.textContent = 'Failed - Try again';
+                demoBannerBtn.style.pointerEvents = 'auto';
+            }
+        });
+    }
 }
 
 function showLoginPrompt() {
