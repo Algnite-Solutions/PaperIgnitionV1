@@ -26,7 +26,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-asyncio", "ruff"]
+dev = ["pytest", "pytest-asyncio", "ruff", "httpx", "psycopg2-binary"]
 pdf-ocr = ["volcengine"]
 
 [build-system]

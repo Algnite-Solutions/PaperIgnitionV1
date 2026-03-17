@@ -48,7 +48,7 @@ def load_config(
         config_path = os.environ.get("PAPERIGNITION_CONFIG")
     if not config_path:
         LOCAL_MODE = os.getenv("PAPERIGNITION_LOCAL_MODE", "false").lower() == "true"
-        config_file = "test_config.yaml" if LOCAL_MODE else "app_config.yaml"
+        config_file = "ci_config.yaml" if LOCAL_MODE else "app_config.yaml"
         config_path = str(Path(__file__).resolve().parent / "configs" / config_file)
 
     if not os.path.exists(config_path):

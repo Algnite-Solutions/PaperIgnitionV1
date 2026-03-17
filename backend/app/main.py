@@ -14,7 +14,7 @@ async def lifespan(app: FastAPI):
     config_path = os.environ.get("PAPERIGNITION_CONFIG")
     if not config_path:
         local_mode = os.getenv("PAPERIGNITION_LOCAL_MODE", "false").lower() == "true"
-        config_file = "test_config.yaml" if local_mode else "app_config.yaml"
+        config_file = "ci_config.yaml" if local_mode else "app_config.yaml"
         config_path = os.path.join(os.path.dirname(__file__), "..", "configs", config_file)
 
     config = load_config(config_path)

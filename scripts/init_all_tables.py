@@ -275,7 +275,7 @@ def main():
     config_path = args.config
     if config_path is None:
         local_mode = os.getenv("PAPERIGNITION_LOCAL_MODE", "false").lower() == "true"
-        config_file = "test_config.yaml" if local_mode else "app_config.yaml"
+        config_file = "ci_config.yaml" if local_mode else "app_config.yaml"
         config_path = str(project_root / "backend" / "configs" / config_file)
 
     if not os.path.exists(config_path):

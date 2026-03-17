@@ -17,7 +17,7 @@ jobs:
       - run: pip install ruff
       - run: ruff check .
 
-  test:
+  unit-tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -26,3 +26,40 @@ jobs:
           python-version: "3.11"
       - run: pip install -e ".[dev]"
       - run: pytest tests/unit/ -v
+
+  integration-tests:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: ci_user
+          POSTGRES_PASSWORD: ci_password
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      PAPERIGNITION_CONFIG: backend/configs/ci_config.yaml
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Initialize databases
+        run: python scripts/init_all_tables.py --config backend/configs/ci_config.yaml
+
+      - name: Run integration tests
+        run: pytest tests/integration/ -v

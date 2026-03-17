@@ -32,7 +32,7 @@ PaperIgnitionV2/
 │   │   ├── crud/            # User CRUD operations
 │   │   └── utils/           # index_utils (translation, search helpers)
 │   ├── config_utils.py      # Unified config loader with .env support
-│   └── configs/             # app_config.yaml, test_config.yaml
+│   └── configs/             # app_config.yaml, ci_config.yaml
 ├── orchestrator/            # Daily task automation
 │   ├── orchestrator.py      # PaperIgnitionOrchestrator main class
 │   ├── paper_pull.py        # PaperPullService (fetch + extract)
@@ -63,7 +63,7 @@ Cloud services:
 Secrets live in `.env` files (never in YAML). YAML configs use `${VAR_NAME}` syntax for environment variable substitution.
 
 - `backend/configs/app_config.yaml` — Production backend config
-- `backend/configs/test_config.yaml` — Local dev backend config
+- `backend/configs/ci_config.yaml` — CI / local dev config (used by `PAPERIGNITION_LOCAL_MODE=true`)
 - `orchestrator/configs/development.yaml` — Local orchestrator config
 - `orchestrator/configs/production.yaml` — Production orchestrator config
 
@@ -73,7 +73,7 @@ Environment variables (see `.env.example`):
 - `GEMINI_API_KEY`
 - `OPENAI_BASE_URL`, `OPENAI_API_KEY` (DeepSeek)
 - `ALIYUN_ACCESS_KEY_ID`, `ALIYUN_ACCESS_KEY_SECRET`, `ALIYUN_OSS_ENDPOINT`, `ALIYUN_OSS_BUCKET`
-- `PAPERIGNITION_LOCAL_MODE` — set `true` to use test_config.yaml
+- `PAPERIGNITION_LOCAL_MODE` — set `true` to use ci_config.yaml
 - `PAPERIGNITION_CONFIG` — override config path
 
 ## Development Commands
@@ -103,7 +103,7 @@ python scripts/init_all_tables.py --paper-db-only
 # Drop and recreate
 python scripts/init_all_tables.py --drop
 
-# Local mode (uses test_config.yaml)
+# Local mode (uses ci_config.yaml)
 PAPERIGNITION_LOCAL_MODE=true python scripts/init_all_tables.py
 ```
 
@@ -137,6 +137,28 @@ ruff check --fix .
 ```
 
 **Note:** `asyncio_mode = "auto"` is set in pyproject.toml — async test functions are detected automatically without `@pytest.mark.asyncio`.
+
+### Running Integration Tests (Local Docker)
+
+Integration tests require PostgreSQL with pgvector. Use Docker to run them locally:
+
+```bash
+# Start postgres with pgvector
+docker run -d --name pi-test-pg -p 5432:5432 \
+  -e POSTGRES_USER=ci_user -e POSTGRES_PASSWORD=ci_password \
+  pgvector/pgvector:pg16
+
+# Initialize databases
+PAPERIGNITION_CONFIG=backend/configs/ci_config.yaml python scripts/init_all_tables.py
+
+# Run integration tests
+pytest tests/integration/ -v
+
+# Cleanup
+docker stop pi-test-pg && docker rm pi-test-pg
+```
+
+Integration tests cover: auth, papers (pgvector similarity search), favorites, digests, orchestrator storage (RDSDBManager), domains, and health check. External APIs (DashScope) are mocked; the database is never mocked.
 
 ### Running Orchestrator
 
