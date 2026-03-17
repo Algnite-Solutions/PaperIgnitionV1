@@ -1,10 +1,7 @@
-from pathlib import Path
-import logging
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker, declarative_base
 from typing import AsyncGenerator
 
-from backend.config_utils import load_config
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import declarative_base, sessionmaker
 
 Base = declarative_base()
 
@@ -85,7 +82,8 @@ async def get_paper_db() -> AsyncGenerator[AsyncSession, None]:
             raise
 
 
-from fastapi import Request, HTTPException
+from fastapi import HTTPException, Request
+
 
 def get_index_service_url(request: Request) -> str:
     if not hasattr(request.app.state, 'index_service_url'):

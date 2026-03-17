@@ -3,28 +3,33 @@ Daily Task Orchestrator for PaperIgnition v2
 """
 
 import asyncio
+import logging
 import os
 import re
 import sys
-import logging
-import yaml
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
+
+import yaml
+from tqdm import tqdm
 
 from core.models import DocSet
-from core.rerankers import GeminiRerankerPDF, GeminiReranker
+from core.rerankers import GeminiReranker, GeminiRerankerPDF
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from orchestrator.generate_blog import run_Gemini_blog_generation_default, run_Gemini_blog_generation_recommend
 from orchestrator.api_clients import BackendAPIClient
+from orchestrator.generate_blog import run_Gemini_blog_generation_recommend
 from orchestrator.paper_pull import PaperPullService
 from orchestrator.storage_util import (
-    LocalStorageManager, StorageConfig,
-    RDSDBManager, RDSConfig, EmbeddingClient,
-    create_oss_storage_manager
+    EmbeddingClient,
+    LocalStorageManager,
+    RDSConfig,
+    RDSDBManager,
+    StorageConfig,
+    create_oss_storage_manager,
 )
 
 try:
@@ -296,6 +301,11 @@ class PaperIgnitionOrchestrator:
         success = False
         papers = []
         try:
+            # Load existing paper IDs from RDS to avoid re-fetching
+            if self.rds_db_manager is not None:
+                self.paper_service.exclude_ids = self.rds_db_manager.get_all_doc_ids()
+                logging.info(f"Loaded {len(self.paper_service.exclude_ids)} existing paper IDs from RDS for dedup")
+
             if lazy_mode:
                 # Lazy mode: metadata only — content extraction deferred to recommendation stage
                 papers = self.paper_service.fetch_metadata_only()
@@ -309,14 +319,23 @@ class PaperIgnitionOrchestrator:
                 if self.rds_db_manager is not None:
                     logging.info("Storing papers to RDS...")
 
-                    stored_count = 0
-                    for paper in papers:
-                        if self.rds_db_manager.insert_paper(paper):
-                            stored_count += 1
+                    new_count = 0
+                    existing_count = 0
+                    failed_count = 0
+                    pbar = tqdm(papers, desc="Inserting papers to RDS", unit="paper")
+                    for paper in pbar:
+                        result = self.rds_db_manager.insert_paper(paper)
+                        if result is True:
+                            new_count += 1
                             if paper.text_chunks:
                                 self.rds_db_manager.insert_text_chunks(paper.doc_id, paper.text_chunks)
+                        elif result is False:
+                            existing_count += 1
+                        else:
+                            failed_count += 1
+                        pbar.set_postfix(new=new_count, existing=existing_count, failed=failed_count)
 
-                    logging.info(f"Stored {stored_count}/{len(papers)} papers to RDS")
+                    logging.info(f"RDS insert: {new_count} new, {existing_count} existing, {failed_count} failed (total {len(papers)})")
 
                     # Batch generate and store embeddings (from title+abstract, works in both modes)
                     if self.embedding_client:
@@ -354,104 +373,6 @@ class PaperIgnitionOrchestrator:
 
         return papers
 
-    async def all_paper_blog_generation(self, all_papers: List[DocSet]):
-        """Generate blog digests for all papers in batches."""
-        username = "BlogBot@gmail.com"
-
-        job_id = await self.job_logger.start_job_log(
-            job_type="daily_blog_generation", username=username
-        )
-        logging.info(f"Start JobLogger for job: {job_id}")
-
-        seen_paper_ids = set()
-        unique_papers = []
-        for paper in all_papers:
-            if paper.doc_id not in seen_paper_ids:
-                seen_paper_ids.add(paper.doc_id)
-                unique_papers.append(paper)
-
-        logging.info(f"Papers before dedup: {len(all_papers)}, after: {len(unique_papers)}")
-        all_papers = unique_papers
-
-        logging.info("Generating blog digests for users...")
-
-        batch_size = 50
-        total_papers = len(all_papers)
-        processed_count = 0
-        failed_batches = 0
-
-        for batch_start in range(0, total_papers, batch_size):
-            batch_end = min(batch_start + batch_size, total_papers)
-            batch_papers = all_papers[batch_start:batch_end]
-
-            logging.info(f"Processing batch {batch_start // batch_size + 1}: papers {batch_start + 1}-{batch_end} of {total_papers}")
-
-            try:
-                output_path = str(self.storage_manager.config.blogs_path)
-                blog_gen_config = self.models_config.get("blog_generation", {})
-                blog_gen_limiter = self.model_rate_limiters.get_limiter("blog_generation") if self.model_rate_limiters else None
-                run_Gemini_blog_generation_default(
-                    batch_papers,
-                    output_path=output_path,
-                    model_config=blog_gen_config,
-                    rate_limiter=blog_gen_limiter,
-                    token_tracker=self.token_tracker,
-                    username=username
-                )
-
-                logging.info(f"Blog generation completed for batch {batch_start // batch_size + 1}")
-
-                paper_infos = []
-                for paper in batch_papers:
-                    blog = self.storage_manager.read_blog(paper.doc_id)
-                    paper_infos.append({
-                        "paper_id": paper.doc_id,
-                        "title": paper.title,
-                        "authors": ", ".join(paper.authors),
-                        "abstract": paper.abstract,
-                        "url": "https://arxiv.org/pdf/" + paper.doc_id,
-                        "content": paper.abstract,
-                        "blog": blog,
-                        "recommendation_reason": f"This is a dummy recommendation reason for paper {paper.title}",
-                        "submitted": paper.published_date,
-                        "relevance_score": 0.5
-                    })
-
-                logging.info(f"Saving batch {batch_start // batch_size + 1} ({len(paper_infos)} papers)...")
-
-                # Update papers blog field in RDS
-                papers_blog_data = [
-                    {"paper_id": p["paper_id"], "blog_content": p["blog"]}
-                    for p in paper_infos if p.get("paper_id") and p.get("blog")
-                ]
-                if papers_blog_data:
-                    if self.rds_db_manager is not None:
-                        success_count, failed_count = self.rds_db_manager.batch_update_papers_blog(papers_blog_data)
-                        logging.info(f"Updated blog in RDS: {success_count} succeeded, {failed_count} failed")
-                    else:
-                        logging.warning("RDS DB Manager not initialized, skipping blog update")
-
-                processed_count += len(batch_papers)
-                logging.info(f"Progress: {processed_count}/{total_papers} papers processed")
-
-            except Exception as e:
-                logging.error(f"Blog generation failed for batch {batch_start // batch_size + 1}: {e}")
-                failed_batches += 1
-                continue
-
-        # Log token usage summary for BlogBot
-        if self.token_tracker:
-            self.token_tracker.log_summary(username)
-
-        details = f"Total Papers: {total_papers}, Processed: {processed_count}, Failed Batches: {failed_batches}"
-        await self.job_logger.complete_job_log(job_id=job_id, status="success" if failed_batches == 0 else "partial", details=details)
-        logging.info(f"All batches completed! Details: {details}")
-
-    async def run_all_papers_blog_generation(self, papers: List[DocSet]):
-        """Run blog generation task"""
-        logging.info("Starting blog generation...")
-        await self.all_paper_blog_generation(papers)
-        logging.info("Blog generation completed successfully")
 
     def _ensure_pdf_downloaded(self, doc_id: str) -> Optional[str]:
         """Return local PDF path, downloading from arXiv if not already present."""

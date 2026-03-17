@@ -6,13 +6,13 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Optional
 from zoneinfo import ZoneInfo
 
 import requests
 
-from core.models import DocSet
 from core.arxiv import ArxivClient, HTMLExtractor, PDFExtractor, download_pdf
+from core.models import DocSet
 
 if TYPE_CHECKING:
     from orchestrator.storage_util import LocalStorageManager
@@ -76,7 +76,8 @@ class PaperPullService:
             self.image_folder_path = self.base_dir / "imgs"
             self.json_output_path = self.base_dir / "jsons"
 
-        self.arxiv_pool_path = self.base_dir / "html_url_storage" / "html_urls.txt"
+        # External exclude IDs (populated from RDS before fetch)
+        self.exclude_ids: set = set()
 
         # VolcEngine credentials for PDF OCR fallback
         self.volcengine_ak = os.getenv("VOLCENGINE_AK", "")
@@ -86,9 +87,6 @@ class PaperPullService:
 
     def _setup_directories(self):
         """Create necessary directories if they don't exist."""
-        self.arxiv_pool_path.parent.mkdir(parents=True, exist_ok=True)
-        self.arxiv_pool_path.touch(exist_ok=True)
-
         for path in [self.html_text_folder, self.pdf_folder_path,
                      self.image_folder_path, self.json_output_path]:
             Path(path).mkdir(parents=True, exist_ok=True)
@@ -119,22 +117,6 @@ class PaperPullService:
             t = start_time + timedelta(minutes=round(i * step))
             result.append(t.strftime(fmt))
         return result
-
-    def _load_exclude_ids(self) -> set:
-        """Load already-processed paper IDs from the pool file."""
-        exclude = set()
-        if self.arxiv_pool_path.exists():
-            for line in self.arxiv_pool_path.read_text().splitlines():
-                line = line.strip()
-                if line:
-                    exclude.add(line)
-        return exclude
-
-    def _save_to_pool(self, doc_ids: list[str]):
-        """Append newly fetched paper IDs to the pool file."""
-        with open(self.arxiv_pool_path, "a") as f:
-            for doc_id in doc_ids:
-                f.write(doc_id + "\n")
 
     def _extract_single_paper(self, paper: DocSet) -> DocSet:
         """Extract content for a single paper: try HTML first, then PDF fallback."""
@@ -194,13 +176,11 @@ class PaperPullService:
 
     def _fetch_metadata_for_timeslot(self, start_str: str, end_str: str, max_papers_per_slot: Optional[int]) -> List[DocSet]:
         """Fetch metadata only (no content extraction) for a single time slot."""
-        exclude_ids = self._load_exclude_ids()
-
         client = ArxivClient(max_results=max_papers_per_slot)
         papers = client.fetch_papers(
             start_time=start_str,
             end_time=end_str,
-            exclude_ids=exclude_ids,
+            exclude_ids=self.exclude_ids,
         )
 
         if not papers:
@@ -208,8 +188,6 @@ class PaperPullService:
             return []
 
         self.logger.info("Fetched %d metadata entries for slot %s-%s", len(papers), start_str, end_str)
-        new_ids = [p.doc_id for p in papers]
-        self._save_to_pool(new_ids)
         return papers
 
     def _run_for_timeslot(self, start_str: str, end_str: str, max_papers_per_slot: Optional[int]) -> List[str]:

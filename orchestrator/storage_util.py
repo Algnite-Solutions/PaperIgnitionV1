@@ -14,18 +14,18 @@ Also provides:
 - AliyunOSSStorageManager: Aliyun OSS storage manager
 """
 
-import os
 import json
-import shutil
 import logging
+import os
+import shutil
 import time
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
 import httpx
 import psycopg2
-from psycopg2.extras import execute_values
-from abc import ABC, abstractmethod
-from pathlib import Path
-from typing import Dict, Any, List, Optional, Union, Tuple
-from dataclasses import dataclass, field
 
 from core.models import DocSet
 
@@ -823,8 +823,12 @@ class RDSDBManager:
 
     # ==================== Paper Metadata Operations ====================
 
-    def insert_paper(self, paper) -> bool:
-        """Insert paper metadata into papers table. Skips if doc_id already exists."""
+    def insert_paper(self, paper) -> Optional[bool]:
+        """Insert paper metadata into papers table. Skips if doc_id already exists.
+
+        Returns:
+            True if a new paper was inserted, False if it already existed, None on error.
+        """
         conn = None
         try:
             conn = self._get_connection()
@@ -833,7 +837,7 @@ class RDSDBManager:
                 cur.execute("SELECT 1 FROM papers WHERE doc_id = %s", (paper.doc_id,))
                 if cur.fetchone():
                     self.logger.debug(f"Paper already exists, skipping: {paper.doc_id}")
-                    return True
+                    return False
 
                 # Reset sequence to avoid PK conflicts
                 cur.execute("SELECT setval('papers_id_seq', COALESCE((SELECT MAX(id) FROM papers), 0) + 1, false)")
@@ -879,6 +883,17 @@ class RDSDBManager:
             if conn:
                 conn.rollback()
             return False
+
+    def get_all_doc_ids(self) -> set:
+        """Return the set of all doc_ids currently stored in the papers table."""
+        try:
+            conn = self._get_connection()
+            with conn.cursor() as cur:
+                cur.execute("SELECT doc_id FROM papers")
+                return {row[0] for row in cur.fetchall()}
+        except Exception as e:
+            self.logger.error(f"Failed to fetch doc_ids: {e}")
+            return set()
 
     def get_paper(self, doc_id: str) -> Optional[Dict]:
         """Get paper metadata."""
@@ -1059,7 +1074,7 @@ class RDSDBManager:
                             sql += " AND p.published_date BETWEEN %s AND %s"
                             params.extend(date_range)
 
-                sql += f" ORDER BY pe.embedding <=> %s::vector LIMIT %s"
+                sql += " ORDER BY pe.embedding <=> %s::vector LIMIT %s"
                 params.extend([embedding_str, top_k])
 
                 cur.execute(sql, params)

@@ -4,17 +4,18 @@ Papers Router - Paper search, content, metadata, and image endpoints
 Handles paper-level operations (not user-specific).
 Prefix: /papers
 """
-from typing import List, Optional, Dict, Any
+import logging
 import os
 import re
-import logging
-from sqlalchemy import text
-from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy.ext.asyncio import AsyncSession
-import httpx
-from pydantic import BaseModel
+from typing import Any, Dict, List, Optional
 
-from ..db_utils import get_paper_db, get_index_service_url
+import httpx
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from ..db_utils import get_index_service_url, get_paper_db
 
 logger = logging.getLogger(__name__)
 

@@ -1,12 +1,13 @@
 from datetime import datetime, timedelta
 from typing import Optional
+
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer  # Import SecurityScopes
+from jose import JWTError, jwt
 from pwdlib import PasswordHash
-from jose import jwt, JWTError
-from fastapi import Depends, HTTPException, status, Security
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, SecurityScopes # Import SecurityScopes
+from sqlalchemy import or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import or_
 from sqlalchemy.orm import selectinload
 
 from ..db_utils import get_db

@@ -4,11 +4,13 @@ API Client Layer for PaperIgnition Orchestrator
 Provides robust HTTP clients with retry logic, timeout handling, and consistent error handling.
 """
 
-import httpx
 import logging
-from typing import Dict, Any, List, Optional, Tuple
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
-from core.models import DocSetList, DocSet
+from typing import Any, Dict, List, Optional, Tuple
+
+import httpx
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+
+from core.models import DocSet
 
 
 class APIClientError(Exception):
@@ -280,7 +282,7 @@ class BackendAPIClient(BaseAPIClient):
 
         try:
             self.logger.debug(f"Recommending paper {paper_id} to {username}")
-            response = self.post(
+            self.post(
                 "/api/digests/recommend",
                 params={"username": username},
                 json_data=data,

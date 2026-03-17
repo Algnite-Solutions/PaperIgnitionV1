@@ -1,12 +1,13 @@
 import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Depends
+
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.app.db_utils import DatabaseManager, get_db, load_config, set_database_manager, set_paper_database_manager
 from backend.app.models.users import ResearchDomain
-from backend.app.db_utils import get_db, DatabaseManager, set_database_manager, set_paper_database_manager, load_config
-from backend.app.routers import auth, users, papers, digests, favorites
+from backend.app.routers import auth, digests, favorites, papers, users
 
 
 @asynccontextmanager
@@ -66,12 +67,16 @@ app.include_router(digests.router, prefix="/api")
 app.include_router(favorites.router, prefix="/api")
 
 # Compatibility routes
-from backend.app.routers.papers import (
-    FindSimilarRequest, FindSimilarResponse,
-    get_paper_content, get_paper_metadata, find_similar_papers,
-    get_paper_db, get_embedding_client
-)
 from fastapi import Request
+
+from backend.app.routers.papers import (
+    FindSimilarRequest,
+    FindSimilarResponse,
+    find_similar_papers,
+    get_paper_content,
+    get_paper_db,
+    get_paper_metadata,
+)
 
 
 @app.post("/find_similar/", response_model=FindSimilarResponse)

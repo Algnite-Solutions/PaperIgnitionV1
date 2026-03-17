@@ -1,14 +1,14 @@
 from typing import List
-from sqlalchemy.future import select
-from sqlalchemy.exc import IntegrityError
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel
 
-from ..models.users import User, FavoritePaper
-from ..models.papers import PaperBase
-from ..db_utils import get_db
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+
 from ..auth.utils import get_current_user
+from ..db_utils import get_db
+from ..models.users import FavoritePaper, User
 
 router = APIRouter(prefix="/favorites", tags=["favorites"])
 
@@ -72,7 +72,7 @@ async def add_to_favorites(
     except IntegrityError:
         await db.rollback()
         raise HTTPException(status_code=400, detail="Paper already in favorites")
-    except Exception as e:
+    except Exception:
         await db.rollback()
         raise HTTPException(status_code=500, detail="Failed to add favorite")
 
@@ -103,7 +103,7 @@ async def remove_from_favorites(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         await db.rollback()
         raise HTTPException(status_code=500, detail="Failed to remove favorite")
 
@@ -134,7 +134,7 @@ async def get_user_favorites(
             for fav in favorites
         ]
 
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Failed to get favorites list")
 
 
@@ -156,7 +156,7 @@ async def check_if_favorited(
 
         return {"is_favorited": favorite is not None}
 
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Failed to check favorite status")
 
 
@@ -217,5 +217,5 @@ async def batch_check_favorites(
 
         return response
 
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Failed to batch check favorites")

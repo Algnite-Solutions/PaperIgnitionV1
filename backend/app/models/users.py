@@ -1,7 +1,8 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Table, Text, Float, Index
-from sqlalchemy.dialects.postgresql import ARRAY, TEXT, JSON, JSONB
-from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
+
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Index, Integer, String, Table, Text
+from sqlalchemy.dialects.postgresql import JSON, JSONB
+from sqlalchemy.orm import relationship
 
 from ..db_utils import Base
 

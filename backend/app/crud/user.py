@@ -1,11 +1,11 @@
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import update
-from typing import Optional
 
-from ..models.users import User
 from ..auth import schemas as auth_schemas
 from ..auth.utils import get_password_hash
+from ..models.users import User
+
 
 async def get_user_by_id(db: AsyncSession, user_id: int) -> User | None:
     """

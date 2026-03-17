@@ -5,11 +5,10 @@ Implements strict RPM (requests per minute) and RPD (requests per day) tracking
 with configurable warning thresholds and blocking behavior.
 """
 
-import time
 import logging
 import threading
+import time
 from typing import Optional
-from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +61,6 @@ class RateLimiter:
     def _get_usage_stats(self, now: float) -> dict:
         """Get current usage statistics"""
         minute_ago = now - 60
-        day_ago = now - 86400
 
         recent_minute = sum(1 for t in self.requests if t > minute_ago)
         recent_day = len(self.requests)
@@ -107,7 +105,6 @@ class RateLimiter:
         """
         with self._lock:
             now = time.time()
-            minute_ago = now - 60
             day_ago = now - 86400
 
             # Clean old requests
@@ -164,7 +161,6 @@ class RateLimiter:
         while time.time() - start < timeout:
             try:
                 now = time.time()
-                minute_ago = now - 60
                 day_ago = now - 86400
 
                 # Clean old requests

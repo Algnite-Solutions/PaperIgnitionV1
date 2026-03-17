@@ -1,7 +1,8 @@
+import logging
+
 import requests
 from openai import OpenAI
-import json
-import logging
+
 logger = logging.getLogger(__name__)
 
 def search_papers_via_api(api_url, query, search_strategy='tf-idf', similarity_cutoff=0.1, filters=None):

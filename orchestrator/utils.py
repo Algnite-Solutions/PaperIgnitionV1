@@ -3,7 +3,8 @@
 import json
 import logging
 from pathlib import Path
-from typing import List, Optional
+from typing import List
+
 from core.models import DocSet
 
 logger = logging.getLogger(__name__)

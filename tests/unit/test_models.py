@@ -1,5 +1,5 @@
 """Unit tests for core models."""
-from core.models import DocSet, TextChunk, FigureChunk, TableChunk
+from core.models import DocSet, TextChunk
 
 
 def test_docset_creation():

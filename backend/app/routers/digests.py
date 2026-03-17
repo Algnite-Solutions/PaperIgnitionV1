@@ -4,19 +4,19 @@ Digests Router - User-specific recommendation endpoints
 Handles user paper recommendations, blog content, feedback, and retrieve results.
 Prefix: /digests
 """
-from typing import List, Optional
-import re
 import logging
+import re
 from datetime import datetime, timezone
-from sqlalchemy.future import select
-from sqlalchemy import text
+from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 
-from ..models.users import User, UserPaperRecommendation, UserRetrieveResult
-from ..models.papers import PaperBase, PaperRecommendation, FeedbackRequest, RetrieveResultSave
-from ..db_utils import get_db
 from ..auth.utils import get_current_user
+from ..db_utils import get_db
+from ..models.papers import FeedbackRequest, PaperBase, PaperRecommendation, RetrieveResultSave
+from ..models.users import User, UserPaperRecommendation, UserRetrieveResult
 
 logger = logging.getLogger(__name__)
 

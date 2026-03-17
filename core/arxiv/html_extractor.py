@@ -4,14 +4,13 @@ Takes HTML string as input — no file I/O except image downloads.
 """
 
 import logging
-import os
 import re
 from pathlib import Path
 
 from bs4 import BeautifulSoup
 
-from core.models import TextChunk, FigureChunk, TableChunk, ChunkType
 from core.arxiv.downloader import get_image_from_url
+from core.models import ChunkType, FigureChunk, TableChunk, TextChunk
 
 logger = logging.getLogger(__name__)
 

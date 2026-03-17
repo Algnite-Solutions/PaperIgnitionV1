@@ -13,22 +13,20 @@ import os
 import sys
 from pathlib import Path
 
-from sqlalchemy import create_engine, text, inspect
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import make_url
-from sqlalchemy.exc import ProgrammingError, OperationalError
+from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.orm import sessionmaker
 
 # Add project root to path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from backend.config_utils import load_config
 from backend.app.db_utils import Base as UserBase
 from backend.app.models.users import (
-    User, ResearchDomain, FavoritePaper,
-    UserPaperRecommendation, UserRetrieveResult, JobLog,
-    user_domain_association,
+    ResearchDomain,
 )
+from backend.config_utils import load_config
 
 # Research domain seed data
 AI_DOMAINS = [

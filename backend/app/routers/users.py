@@ -1,19 +1,19 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
-from typing import List, Optional
-from pydantic import BaseModel
-from sqlalchemy import or_, and_, func
-from sqlalchemy.orm import selectinload
 import asyncio
 import logging
 from datetime import datetime, timezone
+from typing import List
 
-from ..utils.index_utils import get_openai_client, translate_text, search_papers_via_api
-from ..models.users import User, ResearchDomain, user_domain_association, UserPaperRecommendation, FavoritePaper
-from ..db_utils import get_db, get_index_service_url
-from ..auth.schemas import UserOut, UserProfileUpdate, ActivityData
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
+from sqlalchemy import and_, func
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+
+from ..auth.schemas import UserOut, UserProfileUpdate
 from ..auth.utils import get_current_user
+from ..db_utils import get_db, get_index_service_url
+from ..models.users import FavoritePaper, ResearchDomain, User, UserPaperRecommendation
+from ..utils.index_utils import get_openai_client, translate_text
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +80,7 @@ async def get_current_user_info(current_user: User = Depends(get_current_user), 
     viewed_count = await db.scalar(
         select(func.count(UserPaperRecommendation.id)).where(
             UserPaperRecommendation.username == current_user.username,
-            UserPaperRecommendation.viewed == True
+            UserPaperRecommendation.viewed.is_(True)
         )
     )
 
@@ -154,7 +154,7 @@ async def translate_and_update_in_background(user_id: int, text_to_translate: st
     try:
         logger.info(f"Starting background translation for user_id={user_id}")
 
-        from ..db_utils import load_config, get_database_manager
+        from ..db_utils import get_database_manager, load_config
         config = load_config()
         openai_config = config.get("OPENAI_SERVICE", {})
         client = get_openai_client(
@@ -285,8 +285,8 @@ async def get_users_with_empty_rewrite_interest(db: AsyncSession = Depends(get_d
     result = await db.execute(
         select(User).where(
             and_(
-                User.rewrite_interest == None,
-                User.research_interests_text != None,
+                User.rewrite_interest.is_(None),
+                User.research_interests_text.is_not(None),
                 User.research_interests_text != ""
             )
         )

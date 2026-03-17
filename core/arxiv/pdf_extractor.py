@@ -7,15 +7,13 @@ from __future__ import annotations
 
 import base64
 import logging
-import os
 import re
 from pathlib import Path
-from typing import List, Tuple
 
 from bs4 import BeautifulSoup
 
-from core.models import TextChunk, FigureChunk, TableChunk, ChunkType
 from core.arxiv.downloader import compress_pdf
+from core.models import ChunkType, FigureChunk, TableChunk, TextChunk
 
 logger = logging.getLogger(__name__)
 

@@ -1,5 +1,7 @@
-from pydantic import BaseModel
 from typing import List, Optional
+
+from pydantic import BaseModel
+
 from core.models import DocSet
 
 

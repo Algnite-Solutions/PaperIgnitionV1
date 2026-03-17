@@ -9,8 +9,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
-from backend.config_utils import load_config
+
 from backend.app.auth.utils import get_password_hash
+from backend.config_utils import load_config
 
 
 def reset_password(username: str, new_password: str, config_path: str = None):

@@ -1,7 +1,7 @@
 """Core library for PaperIgnition — replaces the AIgnite package dependency."""
 
-from .models import DocSet, TextChunk, FigureChunk, TableChunk, ChunkType
 from .generators import GeminiBlogGenerator_default, GeminiBlogGenerator_recommend
+from .models import ChunkType, DocSet, FigureChunk, TableChunk, TextChunk
 from .rerankers import GeminiReranker, GeminiRerankerPDF
 
 __all__ = [
