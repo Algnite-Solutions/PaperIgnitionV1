@@ -154,7 +154,9 @@ async def translate_and_update_in_background(user_id: int, text_to_translate: st
     try:
         logger.info(f"Starting background translation for user_id={user_id}")
 
-        from ..db_utils import get_database_manager, load_config
+        from backend.config_utils import load_config
+
+        from ..db_utils import get_database_manager
         config = load_config()
         openai_config = config.get("OPENAI_SERVICE", {})
         client = get_openai_client(
@@ -310,7 +312,7 @@ async def batch_update_rewrite_interest(
         result = await db.execute(select(User))
         users = result.scalars().all()
 
-        from ..db_utils import load_config
+        from backend.config_utils import load_config
         config = load_config()
         openai_config = config.get("OPENAI_SERVICE", {})
         client = get_openai_client(

@@ -5,9 +5,10 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.db_utils import DatabaseManager, get_db, load_config, set_database_manager, set_paper_database_manager
+from backend.app.db_utils import DatabaseManager, get_db, set_database_manager, set_paper_database_manager
 from backend.app.models.users import ResearchDomain
 from backend.app.routers import auth, digests, favorites, papers, users
+from backend.config_utils import load_config
 
 
 @asynccontextmanager
