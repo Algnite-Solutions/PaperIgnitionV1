@@ -963,12 +963,20 @@ class RDSDBManager:
                 cur.execute("DELETE FROM text_chunks WHERE doc_id = %s", (doc_id,))
 
                 for i, chunk in enumerate(chunks):
-                    chunk_id = getattr(chunk, 'id', f"{doc_id}_chunk_{i}")
+                    # 原始 chunk 的局部标识（通常是 text_1 / text_2 / ...）
+                    raw_chunk_id = getattr(chunk, 'chunk_id', getattr(chunk, 'id', None))
+                    # 如果拿到的是 None 或空字符串，则回退为稳定的 text_{i}
+                    if not raw_chunk_id:
+                        raw_chunk_id = f"text_{i}"
+                    # 数据库主键需要在不同 doc_id 之间全局唯一：用 doc_id 前缀拼接
+                    pk_id = f"{doc_id}_{raw_chunk_id}"
+                    # 逻辑上的 chunk_id 字段，保留原始标识（或回退后的标识），便于上层代码使用/调试
+                    chunk_id = raw_chunk_id
                     text_content = getattr(chunk, 'text', '')
                     cur.execute("""
                         INSERT INTO text_chunks (id, doc_id, chunk_id, text_content, chunk_order, created_at)
                         VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
-                    """, (chunk_id, doc_id, chunk_id, text_content, i))
+                    """, (pk_id, doc_id, chunk_id, text_content, i))
 
                 conn.commit()
                 self.logger.debug(f"Inserted {len(chunks)} text chunks for paper: {doc_id}")
