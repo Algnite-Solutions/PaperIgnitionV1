@@ -973,6 +973,13 @@ class RDSDBManager:
                     # 逻辑上的 chunk_id 字段，保留原始标识（或回退后的标识），便于上层代码使用/调试
                     chunk_id = raw_chunk_id
                     text_content = getattr(chunk, 'text', '')
+                    self.logger.info(
+                        "Inserting text_chunk row: id=%s doc_id=%s chunk_id=%s chunk_order=%s",
+                        pk_id,
+                        doc_id,
+                        chunk_id,
+                        i,
+                    )
                     cur.execute("""
                         INSERT INTO text_chunks (id, doc_id, chunk_id, text_content, chunk_order, created_at)
                         VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP)

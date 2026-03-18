@@ -1,4 +1,4 @@
-"""PaperPullService: fetch papers from arXiv, extract content via HTML (with PDF fallback)."""
+"""PaperPullService: fetch papers from arXiv, extract content via PDF OCR."""
 
 import json
 import logging
@@ -9,9 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, List, Optional
 from zoneinfo import ZoneInfo
 
-import requests
-
-from core.arxiv import ArxivClient, HTMLExtractor, PDFExtractor, download_pdf
+from core.arxiv import ArxivClient, PDFExtractor, download_pdf
 from core.models import DocSet
 
 if TYPE_CHECKING:
@@ -19,27 +17,12 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_AR5IV_URL = "https://ar5iv.labs.arxiv.org/html/{arxiv_id}"
-
-
-def _fetch_ar5iv_html(arxiv_id: str) -> Optional[str]:
-    """Fetch HTML content from ar5iv for a given arXiv paper ID."""
-    url = _AR5IV_URL.format(arxiv_id=arxiv_id)
-    try:
-        resp = requests.get(url, timeout=30, headers={"User-Agent": "PaperIgnition/2.0"})
-        if resp.status_code == 200:
-            return resp.text
-        logger.warning("ar5iv returned %d for %s", resp.status_code, arxiv_id)
-    except Exception as e:
-        logger.warning("Failed to fetch ar5iv HTML for %s: %s", arxiv_id, e)
-    return None
-
 
 class PaperPullService:
     """
     Service for pulling and extracting papers from arXiv.
 
-    Uses HTML extraction first, then PDF as fallback for papers that fail HTML.
+    Uses PDF extraction with OCR (VolcEngine).
     """
 
     def __init__(
@@ -119,31 +102,11 @@ class PaperPullService:
         return result
 
     def _extract_single_paper(self, paper: DocSet) -> DocSet:
-        """Extract content for a single paper: try HTML first, then PDF fallback."""
+        """Extract content for a single paper via PDF OCR."""
         doc_id = paper.doc_id
-        html_extractor = HTMLExtractor()
-
-        # Step 1: Try HTML extraction via ar5iv
-        html_content = _fetch_ar5iv_html(doc_id)
-        if html_content:
-            try:
-                text_chunks, figure_chunks, table_chunks = html_extractor.extract(
-                    html_content, doc_id, str(self.image_folder_path)
-                )
-                if text_chunks:
-                    paper.text_chunks = text_chunks
-                    paper.figure_chunks = figure_chunks
-                    paper.table_chunks = table_chunks
-                    self.logger.info("HTML extraction succeeded for %s", doc_id)
-                    return paper
-                else:
-                    self.logger.warning("HTML extraction returned no text for %s, trying PDF", doc_id)
-            except Exception as e:
-                self.logger.warning("HTML extraction failed for %s: %s, trying PDF", doc_id, e)
-
-        # Step 2: PDF fallback
+        # PDF OCR
         if not self.volcengine_ak or not self.volcengine_sk:
-            self.logger.warning("No VolcEngine credentials, skipping PDF fallback for %s", doc_id)
+            self.logger.warning("No VolcEngine credentials, skipping PDF OCR extraction for %s", doc_id)
             return paper
 
         pdf_url = f"https://arxiv.org/pdf/{doc_id}.pdf"
@@ -202,7 +165,7 @@ class PaperPullService:
         return [p.doc_id for p in papers]
 
     def extract_paper(self, paper: DocSet) -> DocSet:
-        """Public method: extract content for a single paper (HTML first, PDF fallback).
+        """Public method: extract content for a single paper via PDF OCR.
 
         Used by lazy mode to extract only recommended papers on demand.
         """
