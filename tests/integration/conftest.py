@@ -6,15 +6,19 @@ and mock fixtures for external APIs (DashScope, etc.).
 """
 
 import os
+import subprocess
+import sys
 import uuid
 from pathlib import Path
 
 import psycopg2
 import pytest
+import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-# CI config path
-CI_CONFIG_PATH = str(Path(__file__).parent.parent / "backend" / "configs" / "ci_config.yaml")
+# Project root and CI config path
+PROJECT_ROOT = Path(__file__).parent.parent.parent
+CI_CONFIG_PATH = str(PROJECT_ROOT / "backend" / "configs" / "ci_config.yaml")
 
 
 @pytest.fixture(scope="session")
@@ -27,15 +31,18 @@ def init_databases(ci_config_path):
     """Initialize both user and paper databases once per test session."""
     os.environ["PAPERIGNITION_CONFIG"] = ci_config_path
 
-    from scripts.init_all_tables import init_paper_database, init_user_database
+    result = subprocess.run(
+        [sys.executable, str(PROJECT_ROOT / "scripts" / "init_all_tables.py"), "--config", ci_config_path, "--drop"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        pytest.fail(f"Database init failed:\n{result.stderr}")
 
-    init_user_database(ci_config_path, drop_existing=True)
-    init_paper_database(ci_config_path, drop_existing=True)
 
-
-@pytest.fixture(scope="session")
-def app_client(ci_config_path, init_databases):
-    """Create FastAPI app transport that persists for the whole test session."""
+@pytest_asyncio.fixture(scope="session", loop_scope="session")
+async def app_client(ci_config_path, init_databases):
+    """Create FastAPI app with lifespan that persists for the whole test session."""
     os.environ["PAPERIGNITION_CONFIG"] = ci_config_path
 
     # Reset the global embedding client so it picks up CI config
@@ -44,17 +51,17 @@ def app_client(ci_config_path, init_databases):
     papers._embedding_client = None
     papers._embedding_client_config = None
 
-    from backend.app.main import app
+    from backend.app.main import app, lifespan
 
-    transport = ASGITransport(app=app)
-    return transport, app
+    async with lifespan(app):
+        transport = ASGITransport(app=app)
+        yield transport
 
 
-@pytest.fixture
+@pytest_asyncio.fixture(loop_scope="session")
 async def client(app_client):
     """Async HTTP client for each test."""
-    transport, _app = app_client
-    async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+    async with AsyncClient(transport=app_client, base_url="http://testserver") as ac:
         yield ac
 
 
@@ -103,7 +110,7 @@ def clean_tables(ci_config_path):
         paper_conn.close()
 
 
-@pytest.fixture
+@pytest_asyncio.fixture(loop_scope="session")
 async def test_user(client):
     """Register a unique test user via the API, return credentials + JWT."""
     unique = uuid.uuid4().hex[:8]
@@ -126,7 +133,7 @@ async def test_user(client):
     }
 
 
-@pytest.fixture
+@pytest_asyncio.fixture(loop_scope="session")
 async def auth_headers(test_user):
     """Return Authorization header dict for authenticated requests."""
     return {"Authorization": f"Bearer {test_user['access_token']}"}

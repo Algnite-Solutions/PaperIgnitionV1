@@ -149,8 +149,7 @@ docker run -d --name pi-test-pg -p 5432:5432 \
   pgvector/pgvector:pg16
 
 # Initialize databases
-PAPERIGNITION_CONFIG=backend/configs/ci_config.yaml python scripts/init_all_tables.py
-
+python scripts/init_all_tables.py --config backend/configs/ci_config.yaml
 # Run integration tests
 pytest tests/integration/ -v
 

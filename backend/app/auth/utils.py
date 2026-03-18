@@ -19,7 +19,11 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30 * 24 * 60  # 30天
 
 # 密码哈希工具 - using pwdlib with bcrypt
-pwd_hash = PasswordHash.recommended()
+try:
+    from pwdlib.hashers.bcrypt import BcryptHasher
+    pwd_hash = PasswordHash((BcryptHasher(),))
+except ImportError:
+    pwd_hash = PasswordHash.recommended()
 
 def verify_password(plain_password, hashed_password):
     """验证密码"""
