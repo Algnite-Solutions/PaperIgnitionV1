@@ -12,7 +12,20 @@ jobs:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     steps:
-      - name: Deploy to production
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Sync code to server
+        uses: burnett01/rsync-deployments@7.0.1
+        with:
+          switches: -avz --delete --exclude='.git' --exclude='.env' --exclude='__pycache__' --exclude='*.pyc' --exclude='paperignition-backend.log'
+          path: ./
+          remote_path: /root/PaperIgnitionV1/
+          remote_host: ${{ secrets.DEPLOY_HOST }}
+          remote_user: ${{ secrets.DEPLOY_USER }}
+          remote_key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Install and restart
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.DEPLOY_HOST }}
@@ -24,8 +37,6 @@ jobs:
             PIP=/root/miniconda3/envs/paperignition/bin/pip
 
             cd /root/PaperIgnitionV1
-            echo "=== Pulling latest code ==="
-            git pull origin main
 
             echo "=== Installing dependencies ==="
             $PIP install -e .
@@ -53,4 +64,4 @@ jobs:
                 exit 1
               fi
             done
-            echo "=== Deploy successful: $(git rev-parse --short HEAD) ==="
+            echo "=== Deploy successful ==="
