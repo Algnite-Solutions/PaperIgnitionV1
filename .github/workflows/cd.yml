@@ -36,10 +36,21 @@ jobs:
 
             echo "=== Restarting backend ==="
             fuser -k 8000/tcp 2>/dev/null || true
-            sleep 1
+            sleep 2
             nohup $PYTHON -m uvicorn backend.app.main:app --port 8000 > /root/paperignition-backend.log 2>&1 &
-            sleep 3
 
-            echo "=== Health check ==="
-            curl -f http://localhost:8000/api/health || exit 1
+            echo "=== Health check (retrying up to 30s) ==="
+            for i in $(seq 1 10); do
+              sleep 3
+              if curl -sf http://localhost:8000/api/health > /dev/null 2>&1; then
+                echo "=== Backend is up ==="
+                break
+              fi
+              echo "Attempt $i: waiting for backend..."
+              if [ "$i" = "10" ]; then
+                echo "=== Backend failed to start. Log: ==="
+                tail -20 /root/paperignition-backend.log
+                exit 1
+              fi
+            done
             echo "=== Deploy successful: $(git rev-parse --short HEAD) ==="
