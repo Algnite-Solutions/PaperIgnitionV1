@@ -18,12 +18,16 @@ SECRET_KEY = "aignite_secret_key_change_in_production"  # 生产环境中应使�
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30 * 24 * 60  # 30天
 
-# 密码哈希工具 - using pwdlib with bcrypt
+# 密码哈希工具 - bcrypt for new hashes, argon2 for verifying legacy hashes
+from pwdlib.hashers.bcrypt import BcryptHasher
+
+_hashers = [BcryptHasher()]
 try:
-    from pwdlib.hashers.bcrypt import BcryptHasher
-    pwd_hash = PasswordHash((BcryptHasher(),))
+    from pwdlib.hashers.argon2 import Argon2Hasher
+    _hashers.append(Argon2Hasher())
 except ImportError:
-    pwd_hash = PasswordHash.recommended()
+    pass
+pwd_hash = PasswordHash(tuple(_hashers))
 
 def verify_password(plain_password, hashed_password):
     """验证密码"""

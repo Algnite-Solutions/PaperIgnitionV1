@@ -10,7 +10,7 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.0",
     "asyncpg",
     "python-jose[cryptography]",
-    "pwdlib[bcrypt]",
+    "pwdlib[bcrypt,argon2]",
     "python-dotenv",
     "google-genai",
     "httpx",
