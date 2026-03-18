@@ -35,8 +35,7 @@ jobs:
             nginx -t && systemctl reload nginx
 
             echo "=== Restarting backend ==="
-            PID=$(pgrep -f "python.*uvicorn.*backend" | head -1) || true
-            if [ -n "$PID" ]; then kill "$PID" 2>/dev/null || true; fi
+            fuser -k 8000/tcp 2>/dev/null || true
             sleep 1
             nohup $PYTHON -m uvicorn backend.app.main:app --port 8000 > /root/paperignition-backend.log 2>&1 &
             sleep 3
