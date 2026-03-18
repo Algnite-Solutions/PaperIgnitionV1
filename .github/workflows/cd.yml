@@ -20,8 +20,8 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
             set -e
-            PYTHON=/root/miniconda3/envs/aignite/bin/python
-            PIP=/root/miniconda3/envs/aignite/bin/pip
+            PYTHON=/root/miniconda3/envs/paperignition/bin/python
+            PIP=/root/miniconda3/envs/paperignition/bin/pip
 
             cd /root/PaperIgnitionV1
             echo "=== Pulling latest code ==="
