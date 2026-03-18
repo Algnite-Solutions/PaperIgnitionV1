@@ -89,7 +89,7 @@ class TestPapers:
 
         resp = await client.post(
             "/api/papers/find_similar",
-            json={"query": "attention transformers", "top_k": 10, "similarity_cutoff": 0.0},
+            json={"query": "attention transformers", "top_k": 10, "similarity_cutoff": -1.0},
         )
         assert resp.status_code == 200, f"find_similar failed: {resp.text}"
         data = resp.json()

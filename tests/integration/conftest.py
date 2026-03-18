@@ -145,10 +145,11 @@ def mock_dashscope(monkeypatch):
     import math
 
     def fake_embedding(self, text):
-        h = hash(text) % (2**32)
+        # Use a deterministic seed (not hash() which is randomized per-process)
+        seed = sum(ord(c) for c in text) % (2**32)
         vec = []
         for i in range(1536):
-            val = math.sin(h + i) * 0.5
+            val = math.sin(seed + i) * 0.5
             vec.append(val)
         norm = math.sqrt(sum(v * v for v in vec))
         if norm > 0:
