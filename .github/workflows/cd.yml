@@ -19,10 +19,18 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
+            set -e
             cd /root/PaperIgnitionV1
+            echo "=== Pulling latest code ==="
             git pull origin main
+            echo "=== Installing dependencies ==="
             pip install -e .
+            echo "=== Restarting backend ==="
             sudo systemctl restart paperignition-backend
+            echo "=== Reloading nginx ==="
             sudo nginx -t && sudo systemctl reload nginx
+            echo "=== Waiting for backend to start ==="
             sleep 3
+            echo "=== Health check ==="
             curl -f http://localhost:8000/api/health || exit 1
+            echo "=== Deploy successful: $(git rev-parse --short HEAD) ==="

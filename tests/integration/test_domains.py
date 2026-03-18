@@ -14,4 +14,6 @@ class TestDomains:
     async def test_health_check(self, client):
         resp = await client.get("/api/health")
         assert resp.status_code == 200
-        assert resp.json() == {"status": "ok"}
+        data = resp.json()
+        assert data["status"] == "ok"
+        assert "commit" in data

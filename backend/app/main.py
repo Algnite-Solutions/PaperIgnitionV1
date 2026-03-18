@@ -110,4 +110,12 @@ async def get_research_domains(db: AsyncSession = Depends(get_db)):
 
 @app.get("/api/health")
 async def health_check():
-    return {"status": "ok"}
+    import subprocess
+
+    try:
+        commit = subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"], text=True, timeout=5
+        ).strip()
+    except Exception:
+        commit = "unknown"
+    return {"status": "ok", "commit": commit}
