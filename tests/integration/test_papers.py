@@ -81,13 +81,19 @@ class TestPapers:
 
         # Search — mock_dashscope returns a deterministic vector, so we just verify
         # that pgvector returns results and similarity scores are valid floats
+        # Verify data is actually in the DB before querying
+        with paper_db_conn.cursor() as cur:
+            cur.execute("SELECT doc_id FROM paper_embeddings")
+            rows = cur.fetchall()
+            assert len(rows) >= 2, f"Expected 2+ embeddings, got {rows}"
+
         resp = await client.post(
             "/api/papers/find_similar",
             json={"query": "attention transformers", "top_k": 10, "similarity_cutoff": 0.0},
         )
-        assert resp.status_code == 200
+        assert resp.status_code == 200, f"find_similar failed: {resp.text}"
         data = resp.json()
-        assert data["total"] >= 1
+        assert data["total"] >= 1, f"No results returned. Response: {data}"
         assert len(data["results"]) >= 1
 
         # Verify our seeded papers appear with valid similarity scores
