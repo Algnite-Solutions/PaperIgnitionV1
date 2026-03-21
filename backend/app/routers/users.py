@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -233,9 +233,29 @@ async def update_user_profile(
 
 
 @router.get("/all", response_model=List[UserOut])
-async def get_all_users_info(db: AsyncSession = Depends(get_db)):
-    """Get all users info"""
-    result = await db.execute(select(User))
+async def get_all_users_info(active_since: Optional[str] = None, db: AsyncSession = Depends(get_db)):
+    """Get all users info, optionally filtered by recent activity.
+
+    Args:
+        active_since: ISO date string (e.g. '2026-02-20'). If provided, only returns users
+            who have viewed at least one recommendation since this date.
+    """
+    if active_since:
+        cutoff = datetime.fromisoformat(active_since)
+        # Users with at least 1 viewed recommendation since cutoff
+        active_usernames = (
+            select(UserPaperRecommendation.username)
+            .where(
+                UserPaperRecommendation.viewed.is_(True),
+                UserPaperRecommendation.recommendation_date >= cutoff
+            )
+            .group_by(UserPaperRecommendation.username)
+        )
+        stmt = select(User).where(User.username.in_(active_usernames))
+    else:
+        stmt = select(User)
+
+    result = await db.execute(stmt)
     users = result.scalars().all()
 
     response_users = []

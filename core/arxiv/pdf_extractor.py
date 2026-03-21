@@ -73,11 +73,28 @@ class PDFExtractor:
         visual_service.set_ak(self.volcengine_ak)
         visual_service.set_sk(self.volcengine_sk)
 
-        # Compress if too large
-        if pdf_path.stat().st_size > 7.5 * 1024 * 1024:
-            logger.info("PDF >7.5MB, compressing: %s", pdf_path.name)
+        # Trim to max_pages if PDF has more pages
+        try:
+            import fitz
+            doc = fitz.open(pdf_path)
+            if doc.page_count > self.max_pages:
+                logger.info("PDF has %d pages, trimming to %d: %s", doc.page_count, self.max_pages, pdf_path.name)
+                doc.delete_pages(list(range(self.max_pages, doc.page_count)))
+                trimmed_path = pdf_path.with_suffix(".trimmed.pdf")
+                doc.save(str(trimmed_path), garbage=4, deflate=True)
+                doc.close()
+                trimmed_path.replace(pdf_path)
+            else:
+                doc.close()
+        except Exception as e:
+            logger.warning("Page trimming failed: %s, trying original", e)
+
+        # Compress if too large for OCR API (base64 inflates size ~33%, API limit ~6MB payload)
+        max_pdf_mb = 4.5
+        if pdf_path.stat().st_size > max_pdf_mb * 1024 * 1024:
+            logger.info("PDF >%.1fMB, compressing: %s", max_pdf_mb, pdf_path.name)
             try:
-                compress_pdf(pdf_path)
+                compress_pdf(pdf_path, max_size_mb=max_pdf_mb)
             except Exception as e:
                 logger.warning("Compression failed: %s, trying original", e)
 
@@ -94,27 +111,34 @@ class PDFExtractor:
             "filter_header": "true",
         }
 
-        try:
-            resp = visual_service.ocr_pdf(form)
+        # Retry up to 2 times on failure
+        max_retries = 2
+        for attempt in range(1, max_retries + 1):
+            try:
+                resp = visual_service.ocr_pdf(form)
 
-            if not isinstance(resp, dict) or "data" not in resp:
-                logger.error("OCR response missing 'data': %s", type(resp))
-                return None
+                if not isinstance(resp, dict) or "data" not in resp:
+                    logger.error("OCR response missing 'data': %s", type(resp))
+                    return None
 
-            if resp["data"] is None:
-                logger.error("OCR data is None")
-                return None
+                if resp["data"] is None:
+                    logger.error("OCR data is None")
+                    return None
 
-            markdown = resp["data"].get("markdown")
-            if not markdown:
-                logger.error("OCR returned empty markdown")
-                return None
+                markdown = resp["data"].get("markdown")
+                if not markdown:
+                    logger.error("OCR returned empty markdown")
+                    return None
 
-            return markdown
+                return markdown
 
-        except Exception as e:
-            logger.error("OCR request failed: %s", e)
-            return None
+            except Exception as e:
+                logger.error("OCR request failed (attempt %d/%d): %s", attempt, max_retries, e)
+                if attempt < max_retries:
+                    import time
+                    time.sleep(2)
+
+        return None
 
     def _parse_text(self, markdown: str) -> list[TextChunk]:
         """Parse markdown sections into text chunks."""
@@ -230,9 +254,12 @@ class PDFExtractor:
 
     @staticmethod
     def _extract_figure_name(content: str, url: str) -> str:
-        """Extract figure name from text following the URL."""
-        url_end = content.find(url) + len(url)
-        post = content[url_end:].strip()
+        """Extract figure name from text near the URL (within ~300 chars after, or ~200 before)."""
+        url_pos = content.find(url)
+        url_end = url_pos + len(url)
+
+        # Search in a small window after the URL first
+        post = content[url_end:url_end + 300].strip()
         match = re.search(r"(fig(?:ure)?\.?\s*\d+)", post, re.IGNORECASE)
         if match:
             name = match.group(0).replace(".", "").replace(" ", "")
@@ -240,13 +267,24 @@ class PDFExtractor:
             if name.startswith("Fig") and not name.startswith("Figure"):
                 name = "Figure" + name[3:]
             return name
+
+        # Fallback: search before the URL (caption sometimes precedes image)
+        pre = content[max(0, url_pos - 200):url_pos].strip()
+        match = re.search(r"(fig(?:ure)?\.?\s*\d+)", pre, re.IGNORECASE)
+        if match:
+            name = match.group(0).replace(".", "").replace(" ", "")
+            name = name[0].upper() + name[1:]
+            if name.startswith("Fig") and not name.startswith("Figure"):
+                name = "Figure" + name[3:]
+            return name
+
         return ""
 
     @staticmethod
     def _extract_caption(content: str, url: str) -> str:
-        """Extract caption text following the URL."""
+        """Extract caption text near the URL."""
         url_end = content.find(url) + len(url)
-        post = content[url_end:].lstrip()
+        post = content[url_end:url_end + 500].lstrip()
         match = re.search(
             r"(fig(?:ure)?\.?\s*\d+[a-zA-Z]?\.*.*?)\n", post, re.IGNORECASE | re.DOTALL
         )

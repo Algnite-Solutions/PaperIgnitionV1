@@ -281,7 +281,7 @@ class PaperIgnitionOrchestrator:
     def setup_environment(self):
         """Setup environment variables and paths"""
         self.project_root = str(Path(__file__).parent.parent)
-        env_file = Path(self.project_root) / ".env.app"
+        env_file = Path(self.project_root) / ".env"
         if env_file.exists():
             from dotenv import load_dotenv
             load_dotenv(env_file, override=False)
@@ -395,7 +395,23 @@ class PaperIgnitionOrchestrator:
 
     async def blog_generation_for_all_users(self):
         """Generate blog digests for all users based on their interests"""
-        all_users = self.backend_client.get_all_users()
+        # Only serve users active in the last 30 days (at least 1 viewed recommendation)
+        active_days = self.orch_config.get("user_recommendation", {}).get("active_days", 30)
+        active_since = (datetime.now(timezone.utc) - timedelta(days=active_days)).strftime('%Y-%m-%d')
+        all_users = self.backend_client.get_all_users(active_since=active_since)
+        logging.info(f"Found {len(all_users)} active users (viewed in last {active_days} days)")
+
+        # Always include Demo User
+        active_usernames = {u.get("username") for u in all_users}
+        demo_username = self.orch_config.get("user_recommendation", {}).get("always_include_user", "Demo User")
+        if demo_username and demo_username not in active_usernames:
+            try:
+                demo_user = self.backend_client.get_user_by_email(demo_username)
+                all_users.append(demo_user)
+                logging.info(f"Added always-include user: {demo_username}")
+            except Exception as e:
+                logging.warning(f"Could not fetch always-include user '{demo_username}': {e}")
+
         logging.info(f"Starting recommendation for {len(all_users)} users")
         if self.user_filter:
             all_users = [u for u in all_users if u.get("username") in self.user_filter]

@@ -122,9 +122,12 @@ class BackendAPIClient(BaseAPIClient):
     def __init__(self, base_url: str, timeout: float = 30.0):
         super().__init__(base_url, timeout)
 
-    def get_all_users(self) -> List[Dict[str, Any]]:
+    def get_all_users(self, active_since: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         Get all users from backend
+
+        Args:
+            active_since: ISO date string to filter users by recent activity
 
         Returns:
             List of user dictionaries with username and interests
@@ -133,8 +136,13 @@ class BackendAPIClient(BaseAPIClient):
             APIClientError: If request fails
         """
         try:
-            self.logger.info("Fetching all users...")
-            users = self.get("/api/users/all", timeout=100.0)
+            params = {}
+            if active_since:
+                params["active_since"] = active_since
+                self.logger.info(f"Fetching active users (since {active_since})...")
+            else:
+                self.logger.info("Fetching all users...")
+            users = self.get("/api/users/all", params=params or None, timeout=100.0)
             self.logger.info(f"Retrieved {len(users)} users")
             return users
         except Exception as e:

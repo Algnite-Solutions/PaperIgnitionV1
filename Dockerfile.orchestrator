@@ -1,0 +1,14 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system deps for PDF processing
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc libpq-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY . .
+RUN pip install --no-cache-dir -e ".[pdf-ocr]" oss2
+
+# .env is mounted at runtime, not baked in
+ENTRYPOINT ["python", "orchestrator/orchestrator.py", "configs/production.yaml"]
