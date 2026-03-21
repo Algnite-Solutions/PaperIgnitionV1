@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     rm -rf /var/lib/apt/lists/*
 
 COPY . .
-RUN pip install --no-cache-dir -e ".[pdf-ocr]" oss2
+RUN pip install --no-cache-dir -e ".[pdf-ocr]" oss2 psycopg2-binary
 
 # .env is mounted at runtime, not baked in
 ENTRYPOINT ["python", "orchestrator/orchestrator.py", "configs/production.yaml"]
