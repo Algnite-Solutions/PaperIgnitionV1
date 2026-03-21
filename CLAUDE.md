@@ -138,9 +138,32 @@ ruff check --fix .
 
 **Note:** `asyncio_mode = "auto"` is set in pyproject.toml — async test functions are detected automatically without `@pytest.mark.asyncio`.
 
-### Running Integration Tests (Local Docker)
+### Running Integration Tests
 
-Integration tests require PostgreSQL with pgvector. Use Docker to run them locally:
+Integration tests require PostgreSQL with pgvector. You can use either Docker or local PostgreSQL.
+
+#### Option 1: Local PostgreSQL
+
+```bash
+# Create test user and databases
+sudo -u postgres psql -c "CREATE USER ci_user WITH PASSWORD 'ci_password' CREATEDB;"
+sudo -u postgres psql -c "CREATE DATABASE ci_user_db OWNER ci_user;"
+sudo -u postgres psql -c "CREATE DATABASE ci_paper_db OWNER ci_user;"
+sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE ci_user_db TO ci_user;"
+sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE ci_paper_db TO ci_user;"
+
+# Install pgvector extension (if not already installed)
+sudo apt install -y build-essential git postgresql-server-dev-16
+cd /tmp && git clone --branch v0.5.1 https://github.com/pgvector/pgvector.git
+cd pgvector && make PGCONFIG=/usr/lib/postgresql/16/bin/pg_config
+sudo make install PGCONFIG=/usr/lib/postgresql/16/bin/pg_config
+sudo -u postgres psql -d ci_paper_db -c "CREATE EXTENSION IF NOT EXISTS vector;"
+
+# Run integration tests
+PAPERIGNITION_LOCAL_MODE=true pytest tests/integration/ -v
+```
+
+#### Option 2: Docker
 
 ```bash
 # Start postgres with pgvector
@@ -150,6 +173,7 @@ docker run -d --name pi-test-pg -p 5432:5432 \
 
 # Initialize databases
 python scripts/init_all_tables.py --config backend/configs/ci_config.yaml
+
 # Run integration tests
 pytest tests/integration/ -v
 
@@ -157,7 +181,7 @@ pytest tests/integration/ -v
 docker stop pi-test-pg && docker rm pi-test-pg
 ```
 
-Integration tests cover: auth, papers (pgvector similarity search), favorites, digests, orchestrator storage (RDSDBManager), domains, and health check. External APIs (DashScope) are mocked; the database is never mocked.
+**Test coverage:** auth, papers (pgvector similarity search + BM25 full-text search), favorites, digests, orchestrator storage (RDSDBManager), domains, and health check. External APIs (DashScope) are mocked; the database is never mocked.
 
 ### Running Orchestrator
 
@@ -215,9 +239,17 @@ FastAPI with async SQLAlchemy + asyncpg. Two database managers:
 - `favorites.py` — favorite paper management
 
 **Search flow** (`papers.py`):
+
+*Semantic search (`/find_similar`)*:
 1. DashScope API → query embedding (1536 dims)
 2. SQL with pgvector: CTE pre-filter (date/exclusions) → cosine similarity → ranked results
 3. When no filters: HNSW index for fast approximate search
+
+*BM25 full-text search (`/find_similar_bm25`)*:
+1. Query → PostgreSQL tsquery (AND logic for multiple terms)
+2. SQL with fts_rank(): full-text search on title + abstract with weighted ranking
+3. GIN index for fast text search
+4. No external API calls required
 
 **Compatibility routes** in `main.py`:
 - `/find_similar/` → `/api/papers/find_similar`
@@ -242,7 +274,8 @@ FastAPI with async SQLAlchemy + asyncpg. Two database managers:
 - `POST /api/auth/login-email` — login, returns JWT
 
 **Papers:**
-- `POST /api/papers/find_similar` — semantic search (pgvector)
+- `POST /api/papers/find_similar` — semantic search (pgvector embeddings)
+- `POST /api/papers/find_similar_bm25` — full-text search (BM25 / PostgreSQL ts_rank)
 - `GET /api/papers/content/{paper_id}` — global blog content
 - `GET /api/papers/metadata/{doc_id}` — paper metadata
 
