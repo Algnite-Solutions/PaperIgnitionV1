@@ -31,7 +31,7 @@ class APIResponseError(APIClientError):
 class BaseAPIClient:
     """Base API client with common functionality"""
 
-    def __init__(self, base_url: str, timeout: float = 30.0, max_retries: int = 3):
+    def __init__(self, base_url: str, timeout: float = 30.0, max_retries: int = 3, verify_ssl: bool = True):
         """
         Initialize base API client
 
@@ -39,10 +39,12 @@ class BaseAPIClient:
             base_url: Base URL for the API
             timeout: Default timeout in seconds
             max_retries: Maximum number of retry attempts
+            verify_ssl: Whether to verify SSL certificates
         """
         self.base_url = base_url.rstrip('/')
         self.timeout = timeout
         self.max_retries = max_retries
+        self.verify_ssl = verify_ssl
         self.logger = logging.getLogger(self.__class__.__name__)
 
     @retry(
@@ -86,7 +88,8 @@ class BaseAPIClient:
                 url=url,
                 json=json_data,
                 params=params,
-                timeout=timeout_value
+                timeout=timeout_value,
+                verify=self.verify_ssl
             )
             response.raise_for_status()
             return response
@@ -119,8 +122,8 @@ class BaseAPIClient:
 class BackendAPIClient(BaseAPIClient):
     """Client for Backend App Service API"""
 
-    def __init__(self, base_url: str, timeout: float = 30.0):
-        super().__init__(base_url, timeout)
+    def __init__(self, base_url: str, timeout: float = 30.0, verify_ssl: bool = True):
+        super().__init__(base_url, timeout, verify_ssl=verify_ssl)
 
     def get_all_users(self, active_since: Optional[str] = None) -> List[Dict[str, Any]]:
         """

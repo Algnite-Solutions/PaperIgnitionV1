@@ -133,7 +133,11 @@ class PaperIgnitionOrchestrator:
         logging.info(f"Backend API URL: {self.backend_api_url}")
 
         # Initialize API clients
-        self.backend_client = BackendAPIClient(self.backend_api_url)
+        # Disable SSL verification when connecting to IP addresses (cert won't match)
+        import re as _re
+        host = self.backend_api_url.split("//")[-1].split("/")[0].split(":")[0]
+        verify_ssl = not bool(_re.match(r"^\d+\.\d+\.\d+\.\d+$", host))
+        self.backend_client = BackendAPIClient(self.backend_api_url, verify_ssl=verify_ssl)
 
         # Initialize paper pull service with config
         base_dir = os.path.join(self.project_root, "orchestrator")
@@ -648,13 +652,7 @@ class PaperIgnitionOrchestrator:
                 results["paper_fetch"] = len(papers) > 0
 
                 if len(papers) == 0:
-                    logging.warning("No papers fetched, skipping downstream tasks")
-                    await self.job_logger.complete_job_log(
-                        overall_job_id,
-                        status="partial",
-                        details={"reason": "No papers were fetched", "stages_run": results["stages_run"]}
-                    )
-                    return results
+                    logging.info("No new papers fetched — existing papers will be used for recommendations")
             else:
                 logging.info("Skipping paper fetch stage (disabled in config)")
 
