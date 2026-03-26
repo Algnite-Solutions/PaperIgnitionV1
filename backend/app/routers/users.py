@@ -5,7 +5,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy import and_, func
+from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -309,85 +309,3 @@ async def get_user_by_email(
     }
 
 
-@router.get("/rewrite_interest/empty", response_model=List[dict])
-async def get_users_with_empty_rewrite_interest(db: AsyncSession = Depends(get_db)):
-    """Get all users with empty rewrite_interest but non-empty research_interests_text"""
-    result = await db.execute(
-        select(User).where(
-            and_(
-                User.rewrite_interest.is_(None),
-                User.research_interests_text.is_not(None),
-                User.research_interests_text != ""
-            )
-        )
-    )
-    users = result.scalars().all()
-    response = []
-    for user in users:
-        response.append({
-            "username": user.username,
-            "research_interests_text": user.research_interests_text
-        })
-    return response
-
-
-@router.post("/rewrite_interest/batch_update")
-async def batch_update_rewrite_interest(
-    db: AsyncSession = Depends(get_db)
-):
-    """Batch translate research_interests_text and store in rewrite_interest field"""
-    try:
-        result = await db.execute(select(User))
-        users = result.scalars().all()
-
-        updated = []
-        failed = []
-
-        for user in users:
-            try:
-                if user.research_interests_text and len(user.research_interests_text.strip()) > 0:
-                    interests_text = user.research_interests_text
-                    logger.info(f"Translating for user {user.username}: '{interests_text[:50]}...'")
-
-                    english_text = translate_text_gemini(interests_text)
-
-                    if english_text:
-                        user.rewrite_interest = english_text
-                        updated.append({
-                            "username": user.username,
-                            "original": interests_text,
-                            "translated": english_text
-                        })
-                        logger.info(f"Successfully translated for user {user.username}")
-                    else:
-                        failed.append({
-                            "username": user.username,
-                            "error": "Translation result empty"
-                        })
-                else:
-                    logger.info(f"User {user.username} has no research_interests_text, skipping")
-
-            except Exception as e:
-                failed.append({
-                    "username": user.username,
-                    "error": str(e)
-                })
-                logger.error(f"Error translating for user {user.username}: {e}")
-
-        await db.commit()
-
-        return {
-            "message": "Batch translation complete",
-            "total_users": len(users),
-            "updated": updated,
-            "failed": failed,
-            "success_count": len(updated),
-            "failed_count": len(failed)
-        }
-
-    except Exception as e:
-        logger.error(f"Batch translation task failed: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Batch translation failed: {str(e)}"
-        )
