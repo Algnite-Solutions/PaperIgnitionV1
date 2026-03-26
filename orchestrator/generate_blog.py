@@ -47,7 +47,8 @@ def run_Gemini_blog_generation_recommend(
     model_config: Optional[Dict[str, Any]] = None,
     rate_limiter: Optional[RateLimiter] = None,
     token_tracker=None,
-    username="default"
+    username="default",
+    language="zh",
 ):
     if model_config is None:
         model_config = {
@@ -68,6 +69,7 @@ def run_Gemini_blog_generation_recommend(
         api_key=api_key,
         rate_limiter=rate_limiter,
         token_tracker=token_tracker,
-        username=username
+        username=username,
+        language=language,
     )
     generator.generate_digest(papers)

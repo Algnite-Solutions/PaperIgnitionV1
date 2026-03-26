@@ -37,6 +37,44 @@ def _load_prompt_config(input_format: str = "pdf") -> dict:
     return _PROMPT_CONFIGS[input_format]
 
 
+def _format_figure_info(figure_chunks, data_path: str) -> str:
+    """Format figure chunks into a clean list for LLM prompts.
+
+    Args:
+        figure_chunks: List of FigureChunk objects (or similar with title/caption/image_path).
+        data_path: Base path for image URLs.
+
+    Returns:
+        Formatted string listing available figures with their markdown syntax.
+    """
+    if not figure_chunks:
+        return "No figures available for this paper. Do not cite any figures."
+
+    lines = ["Available Figures (ONLY use figures from this list — do NOT invent figure numbers):"]
+    for fig in figure_chunks:
+        title = getattr(fig, "title", "") or ""
+        caption = getattr(fig, "caption", "") or ""
+        image_path = getattr(fig, "image_path", "") or ""
+
+        # Extract figure number from title like "2501.01234_Figure1"
+        fig_num = ""
+        if "_Figure" in title:
+            fig_num = title.split("_Figure")[-1]
+        elif "_figure" in title:
+            fig_num = title.split("_figure")[-1]
+
+        # Build the image filename from the title
+        img_filename = f"{title}.png" if title else ""
+        if image_path:
+            img_filename = image_path.split("/")[-1] if "/" in image_path else image_path
+
+        caption_text = caption[:200] if caption else "No caption"
+        fig_label = f"Figure {fig_num}" if fig_num else title
+        lines.append(f"- {fig_label}: \"{caption_text}\" → ![{fig_label}: {caption_text}]({data_path}/{img_filename})")
+
+    return "\n".join(lines)
+
+
 def format_blog_prompt(
     data_path: str,
     arxiv_id: str,
@@ -45,12 +83,14 @@ def format_blog_prompt(
     figure_chunks: str,
     title: str,
     input_format: str = "pdf",
+    language: str = "zh",
 ) -> str:
     """Format the blog generation prompt."""
     config = _load_prompt_config(input_format)
 
     if input_format == "pdf":
-        return config["blog_generation_prompt"].format(
+        prompt_key = "blog_generation_prompt_en" if language == "en" else "blog_generation_prompt"
+        return config[prompt_key].format(
             data_path=data_path,
             arxiv_id=arxiv_id,
             figure_chunks=figure_chunks,
@@ -82,6 +122,7 @@ class GeminiBlogGenerator_default:
         rate_limiter=None,
         token_tracker=None,
         username="BlogBot@gmail.com",
+        language="zh",
     ):
         if api_key is None:
             api_key = os.getenv("GEMINI_API_KEY")
@@ -97,6 +138,7 @@ class GeminiBlogGenerator_default:
         self.rate_limiter = rate_limiter
         self.token_tracker = token_tracker
         self.username = username
+        self.language = language
 
     def generate_digest(self, papers: List[DocSet], input_format="pdf"):
         def generate_with_delay(paper):
@@ -119,14 +161,16 @@ class GeminiBlogGenerator_default:
                 pdf_data = pdf_file.read()
 
         arxiv_id = paper.doc_id
+        figure_info = _format_figure_info(paper.figure_chunks, self.data_path)
         prompt = format_blog_prompt(
             data_path=self.data_path,
             arxiv_id=arxiv_id,
             text_chunks=paper.text_chunks,
             table_chunks=paper.table_chunks,
-            figure_chunks=paper.figure_chunks,
+            figure_chunks=figure_info,
             title=paper.title,
             input_format=input_format,
+            language=self.language,
         )
 
         max_retries = 5
@@ -205,6 +249,7 @@ class GeminiBlogGenerator_recommend:
         rate_limiter=None,
         token_tracker=None,
         username="default",
+        language="zh",
     ):
         if api_key is None:
             api_key = os.getenv("GEMINI_API_KEY")
@@ -220,6 +265,7 @@ class GeminiBlogGenerator_recommend:
         self.rate_limiter = rate_limiter
         self.token_tracker = token_tracker
         self.username = username
+        self.language = language
 
     def generate_digest(self, papers: List[DocSet], input_format="pdf"):
         def generate_with_delay(paper):
@@ -248,14 +294,16 @@ class GeminiBlogGenerator_recommend:
                 pdf_data = pdf_file.read()
 
         arxiv_id = paper.doc_id
+        figure_info = _format_figure_info(paper.figure_chunks, self.data_path)
         prompt = format_blog_prompt(
             data_path=self.data_path,
             arxiv_id=arxiv_id,
             text_chunks=str(paper.text_chunks),
             table_chunks=str(paper.table_chunks),
-            figure_chunks=str(paper.figure_chunks),
+            figure_chunks=figure_info,
             title=paper.title,
             input_format=input_format,
+            language=self.language,
         )
 
         max_retries = 5

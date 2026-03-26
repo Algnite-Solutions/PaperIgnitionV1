@@ -29,16 +29,13 @@ blog_generation_prompt_en: |
   - Relevant Links & References
 
   Strict Formatting Constraints:
-  - Figures: If the paper contains figures, select the most crucial ones (especially the pipeline diagram). Use the following exact markdown format for images:
-  ![Figure X: short caption]({data_path}/{arxiv_id}_FigureX.png)
-  (Note: Do not literally write "Figure X"; replace 'X' with the actual figure number from the original text).
+  - Figures: ONLY cite figures from the "Available Figures" list below. Do NOT invent or guess figure numbers. Use the exact markdown image syntax provided for each figure. Select the most crucial ones (especially the pipeline diagram), maximum 3 figures.
   - Tables: Do NOT cite tables as images. Extract and present the table content directly using Markdown tables or text summaries.
 
   Links: Embed hyperlinks seamlessly for extra information (e.g., official project websites, GitHub repos, datasets).
 
   Below is the raw information of the paper:
   Paper Title: {title}
-  Figure Information: (Follow the actual Figure numbers below for citations)
   {figure_chunks}
   You will also process the provided PDF document content. Synthesize all this information to generate the blog post.
 
@@ -74,16 +71,11 @@ blog_generation_prompt: |
   - 相关链接
   
   注意事项：
-  如果论文包含图片，请选择重要的图表（尤其是表示pipeline的图）进行引用。
-  对于每个图片，使用以下格式：
-  ![Figure X: short caption]({data_path}/{arxiv_id}_FigureX.png)
-  
-  （注意，不要写FigureX，而是原文中真实的Figure号码）
+  图片引用：只能引用下方"Available Figures"列表中的图片，不要猜测或编造Figure编号。请直接使用列表中提供的markdown图片语法。选择最重要的图（尤其是pipeline图），最多引用3张。
+  表格不要引用为图片，直接使用表格内容。
   论文的额外信息（如官方网站、代码、数据集等）可以使用超链接。
-  
+
   下面是论文原文：
   论文标题：{title}
-  注意：表格不要引用，直接使用表格内容。
-  figure需要按照要求引用，按照下面的Figure号码引用。
   {figure_chunks}
   你还将看到PDF文档内容，请结合PDF中的所有信息来生成博客。

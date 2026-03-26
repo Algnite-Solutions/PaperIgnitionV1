@@ -1,7 +1,7 @@
 import logging
+import os
 
 import requests
-from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,8 @@ def search_papers_via_api(api_url, query, search_strategy='tf-idf', similarity_c
         return []
 
 def get_openai_client(base_url="http://10.0.1.226:5666/v1", api_key="EMPTY"):
-    """初始化OpenAI客户端"""
+    """Legacy: kept for backward compatibility with batch_update endpoint."""
+    from openai import OpenAI
     return OpenAI(
         base_url=base_url,
         api_key=api_key
@@ -40,8 +41,7 @@ def get_users_with_empty_rewrite_interest(backend_api="http://localhost:8000/api
     resp = requests.get(f"{backend_api}/rewrite_interest/empty")
     return resp.json()
 
-def translate_text(client, text):
-    system_prompt = """You are an expert bilingual rewriter specializing in English and Chinese.
+_TRANSLATE_PROMPT = """You are an expert bilingual rewriter specializing in English and Chinese.
 Your job is to produce a clear, information-rich English query for semantic search or dense retrieval.
 
 When given an input in either Chinese or English:
@@ -53,11 +53,36 @@ When given an input in either Chinese or English:
 - Output only the final English text.
 """
 
+
+def translate_text_gemini(text: str, api_key: str | None = None) -> str | None:
+    """Translate/rewrite research interests to English using Gemini."""
+    from google import genai
+
+    if api_key is None:
+        api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        logger.error("GEMINI_API_KEY not set, cannot translate")
+        return None
+
+    try:
+        client = genai.Client(api_key=api_key)
+        response = client.models.generate_content(
+            model="gemini-3.1-flash-lite-preview",
+            contents=f"{_TRANSLATE_PROMPT}\n\nUser input:\n{text}",
+        )
+        return response.text.strip() if response.text else None
+    except Exception as e:
+        logger.error(f"Gemini translation failed: {e}")
+        return None
+
+
+def translate_text(client, text):
+    """Legacy translate using OpenAI-compatible client (DeepSeek). Kept for batch_update endpoint."""
     try:
         resp = client.chat.completions.create(
             model="deepseek-chat",
             messages=[
-                {"role": "system", "content": system_prompt},
+                {"role": "system", "content": _TRANSLATE_PROMPT},
                 {"role": "user", "content": f"{text}"}
             ],
             max_tokens=512
@@ -65,7 +90,7 @@ When given an input in either Chinese or English:
         output = resp.choices[0].message.content
         return output
     except Exception as e:
-        print(f"翻译失败: {e}")
+        logger.error(f"Translation failed: {e}")
         return None
 
 def batch_update_rewrite_interest(users_data, backend_api="http://localhost:8000/api/users"):

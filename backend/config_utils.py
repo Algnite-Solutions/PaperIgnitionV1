@@ -68,7 +68,6 @@ def load_config(
         config = {
             "USER_DB": full_config["USER_DB"],
             "APP_SERVICE": full_config["APP_SERVICE"],
-            "OPENAI_SERVICE": full_config.get("OPENAI_SERVICE", {}),
             "dashscope": full_config.get("dashscope", {}),
             "aliyun_rds": full_config.get("aliyun_rds", {}),
             "aliyun_oss": full_config.get("aliyun_oss", {}),
