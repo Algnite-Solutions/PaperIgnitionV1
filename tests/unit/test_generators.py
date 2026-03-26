@@ -19,7 +19,7 @@ def test_format_figure_info_single_figure():
         FigureChunk(
             title="2501.01234_Figure1",
             caption="Architecture overview",
-            image_path="imgs/2501.01234_Figure1.png",
+            image_path="/tmp/local/path/2501.01234_Figure1.png",
         )
     ]
     result = _format_figure_info(figs, "./imgs")
@@ -27,7 +27,9 @@ def test_format_figure_info_single_figure():
     assert "Figure 1" in result
     assert "Architecture overview" in result
     assert "![Figure 1:" in result
+    # Must use {data_path}/{title}.png format (OSS-compatible), not the local image_path
     assert "./imgs/2501.01234_Figure1.png" in result
+    assert "/tmp/local" not in result
 
 
 def test_format_figure_info_multiple_figures():
@@ -115,3 +117,45 @@ def test_format_blog_prompt_figure_instruction_en():
         language="en",
     )
     assert "ONLY cite figures from" in prompt
+
+
+def test_end_to_end_figure_info_into_prompt():
+    """End-to-end: _format_figure_info → format_blog_prompt produces correct OSS-compatible paths."""
+    figs = [
+        FigureChunk(title="2501.01234_Figure1", caption="Pipeline overview", image_path="/local/2501.01234_Figure1.png"),
+        FigureChunk(title="2501.01234_Figure3", caption="Ablation results"),
+    ]
+    figure_info = _format_figure_info(figs, "./imgs")
+    prompt = format_blog_prompt(
+        data_path="./imgs",
+        arxiv_id="2501.01234",
+        text_chunks="",
+        table_chunks="",
+        figure_chunks=figure_info,
+        title="My Test Paper",
+        input_format="pdf",
+        language="zh",
+    )
+    # Figure list is embedded in prompt
+    assert "Available Figures" in prompt
+    # Correct OSS-compatible markdown paths (backend rewrites ./imgs/ to oss URL)
+    assert "![Figure 1: Pipeline overview](./imgs/2501.01234_Figure1.png)" in prompt
+    assert "![Figure 3: Ablation results](./imgs/2501.01234_Figure3.png)" in prompt
+    # Local paths must NOT leak into prompt
+    assert "/local/" not in prompt
+
+
+def test_end_to_end_no_figures_into_prompt():
+    """End-to-end: empty figures → prompt contains do-not-cite instruction."""
+    figure_info = _format_figure_info([], "./imgs")
+    prompt = format_blog_prompt(
+        data_path="./imgs",
+        arxiv_id="2501.01234",
+        text_chunks="",
+        table_chunks="",
+        figure_chunks=figure_info,
+        title="No Fig Paper",
+        input_format="pdf",
+    )
+    assert "No figures available" in prompt
+    assert "Do not cite any figures" in prompt

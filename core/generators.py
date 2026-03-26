@@ -63,10 +63,9 @@ def _format_figure_info(figure_chunks, data_path: str) -> str:
         elif "_figure" in title:
             fig_num = title.split("_figure")[-1]
 
-        # Build the image filename from the title
+        # Always use {title}.png — matches OSS naming convention (e.g. 2501.01234_Figure1.png)
+        # The backend rewrites ./imgs/xxx.png to http://oss.paperignition.com/imgs/xxx.png
         img_filename = f"{title}.png" if title else ""
-        if image_path:
-            img_filename = image_path.split("/")[-1] if "/" in image_path else image_path
 
         caption_text = caption[:200] if caption else "No caption"
         fig_label = f"Figure {fig_num}" if fig_num else title
