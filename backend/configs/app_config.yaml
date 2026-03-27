@@ -8,10 +8,6 @@ USER_DB:
   db_port: ${DB_PORT}
   db_name: ${DB_NAME_USER}
 
-OPENAI_SERVICE:
-  base_url: ${OPENAI_BASE_URL}
-  api_key: ${OPENAI_API_KEY}
-
 dashscope:
   api_key: ${DASHSCOPE_API_KEY}
   base_url: ${DASHSCOPE_BASE_URL}

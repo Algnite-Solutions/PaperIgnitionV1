@@ -4,14 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-PaperIgnition v2 is a standalone AI-powered academic paper recommendation system. It fetches papers from arXiv, indexes them with pgvector for semantic search, generates blog summaries using Gemini LLMs, and delivers personalized recommendations. The system supports an H5 web frontend.
+PaperIgnitionV1 is a standalone AI-powered academic paper recommendation system. It fetches papers from arXiv, indexes them with pgvector for semantic search, generates blog summaries using Gemini LLMs, and delivers personalized recommendations. The system supports an H5 web frontend.
 
-**Key difference from v1:** v2 is fully standalone — no external `AIgnite` package dependency. All needed functionality is inlined in the `core/` package.
+**Key difference from PaperIgnition(Beta):** V1 is fully standalone — no external `AIgnite` package dependency. All needed functionality is inlined in the `core/` package.
 
 ### Architecture
 
 ```
-PaperIgnitionV2/
+PaperIgnitionV1/
 ├── core/                    # Shared library (replaces AIgnite)
 │   ├── models.py            # DocSet, TextChunk, FigureChunk, TableChunk
 │   ├── arxiv/               # arXiv extraction pipeline
@@ -71,10 +71,72 @@ Environment variables (see `.env.example`):
 - `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME_PAPER`, `DB_NAME_USER`
 - `DASHSCOPE_API_KEY`, `DASHSCOPE_BASE_URL`
 - `GEMINI_API_KEY`
-- `OPENAI_BASE_URL`, `OPENAI_API_KEY` (DeepSeek)
 - `ALIYUN_ACCESS_KEY_ID`, `ALIYUN_ACCESS_KEY_SECRET`, `ALIYUN_OSS_ENDPOINT`, `ALIYUN_OSS_BUCKET`
 - `PAPERIGNITION_LOCAL_MODE` — set `true` to use ci_config.yaml
 - `PAPERIGNITION_CONFIG` — override config path
+
+## Deployment
+
+### Backend (Aliyun — automated CD)
+
+The backend runs on Aliyun at `120.55.55.116` behind nginx (HTTPS :443 → uvicorn :8000).
+
+**CD flow** (`.github/workflows/cd.yml`, triggers after CI passes on `main`):
+1. Rsyncs repo to `/root/PaperIgnitionV1/` on the Aliyun server
+2. Runs `pip install -e .` to update dependencies
+3. Copies nginx config and reloads nginx
+4. Kills old uvicorn process and starts a new one on port 8000
+5. Health check retries for up to 30s
+
+**Secrets needed in GitHub repo settings:** `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`
+
+### Orchestrator (Mac Mini — automated CD)
+
+The orchestrator runs daily via Docker on a Mac Mini. CI builds and pushes the image; a cron job pulls and runs it.
+
+**CI/CD flow:**
+1. Push to `main` → CI runs lint + tests → `build-orchestrator` job builds multi-arch Docker image (amd64 + arm64)
+2. Image pushed to `ghcr.io/algnite-solutions/paperignition-orchestrator:latest`
+3. Mac Mini cron pulls `:latest` and runs it daily at 8am
+
+**Docker image:** built from `Dockerfile.orchestrator`, CI config in `.github/workflows/ci.yml` (`build-orchestrator` job).
+
+**First-time server setup:**
+
+```bash
+# 1. SSH into the Mac Mini
+ssh leahai@leahs-mac-mini.lan
+
+# 2. Ensure Docker is available (OrbStack or Docker Desktop)
+docker --version
+
+# 3. Create working directory and .env
+mkdir -p ~/paperignition
+cp .env.example ~/paperignition/.env   # fill in all secrets
+# Key: APP_SERVICE_HOST=https://120.55.55.116
+
+# 4. Authenticate with GHCR (GitHub Container Registry)
+brew install gh                        # if not installed
+gh auth login
+gh auth refresh -h github.com -s read:packages,write:packages
+gh auth token | docker login ghcr.io -u USERNAME --password-stdin
+
+# 5. Pull and test the image
+docker pull ghcr.io/algnite-solutions/paperignition-orchestrator:latest
+docker run --rm --env-file ~/paperignition/.env \
+  ghcr.io/algnite-solutions/paperignition-orchestrator:latest
+
+# 6. Set up daily cron
+crontab -e   # add the line below (runs at 8am local time daily):
+# 0 8 * * * /usr/local/bin/docker pull ghcr.io/algnite-solutions/paperignition-orchestrator:latest >> /Users/leahai/paperignition/orchestrator.log 2>&1 && /usr/local/bin/docker run --rm --env-file /Users/leahai/paperignition/.env ghcr.io/algnite-solutions/paperignition-orchestrator:latest >> /Users/leahai/paperignition/orchestrator.log 2>&1
+crontab -l   # verify
+```
+
+**Managing the cron:**
+- `crontab -l` — list current schedule
+- `crontab -e` — edit schedule (change time, disable, etc.)
+- `crontab -r` — remove all cron jobs
+- Logs: `tail -f ~/paperignition/orchestrator.log`
 
 ## Development Commands
 

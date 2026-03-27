@@ -330,6 +330,35 @@
         .footer-content a:hover {
             color: var(--text-primary);
         }
+
+        .constraint-chip {
+            background: #fee2e2;
+            color: #991b1b;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: background 0.2s;
+        }
+
+        .constraint-chip:hover {
+            background: #fecaca;
+        }
+
+        .constraint-chip .remove-icon {
+            font-size: 16px;
+            font-weight: bold;
+            opacity: 0.6;
+        }
+
+        .lang-active {
+            background-color: var(--accent-red) !important;
+            color: white !important;
+            border-color: var(--accent-red) !important;
+        }
     </style>
 </head>
 <body>
@@ -423,6 +452,55 @@
                                 <span>Save Interests</span>
                             </button>
                         </div>
+                        </div>
+                    </div>
+
+                    <!-- System Profile -->
+                    <div class="profile-section" id="systemProfileSection" style="display: none;">
+                        <h2 class="section-title">System Profile</h2>
+
+                        <div class="form-group">
+                            <label class="form-label">System Query (used for paper search)</label>
+                            <div id="rewriteInterestDisplay" style="color: var(--text-primary); line-height: 1.6; background: var(--hover-bg); padding: 12px; border-radius: 8px; border-left: 3px solid #667eea; font-size: 14px;">
+                            </div>
+                        </div>
+
+                        <div id="personaSection" style="display: none;">
+                            <div class="form-group">
+                                <label class="form-label">Persona</label>
+                                <div id="personaDisplay" style="color: var(--text-secondary); line-height: 1.6; background: var(--hover-bg); padding: 12px; border-radius: 8px; font-size: 14px;">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="heuristicsSection" style="display: none;">
+                            <div class="form-group">
+                                <label class="form-label">Ranking Heuristics</label>
+                                <ul id="heuristicsList" style="color: var(--text-secondary); padding-left: 20px; font-size: 14px; line-height: 1.8;"></ul>
+                            </div>
+                        </div>
+
+                        <div id="negativeConstraintsSection" style="display: none;">
+                            <div class="form-group">
+                                <label class="form-label">Negative Constraints (click to remove)</label>
+                                <div id="negativeConstraintsList" class="interests-list" style="margin-bottom: 12px;"></div>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="text" id="newConstraintInput" class="form-input" placeholder="Add a negative constraint..." style="flex: 1;">
+                                    <button type="button" class="btn btn-secondary" onclick="addNegativeConstraint()" style="white-space: nowrap;">Add</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Blog Language -->
+                    <div class="profile-section">
+                        <h2 class="section-title">Blog Language</h2>
+                        <p style="color: var(--text-secondary); font-size: 14px; margin-bottom: 12px;">
+                            Choose the language for your daily paper blog recommendations.
+                        </p>
+                        <div style="display: flex; gap: 12px;">
+                            <button type="button" class="btn" id="langZhBtn" onclick="setBlogLanguage('zh')">Chinese</button>
+                            <button type="button" class="btn" id="langEnBtn" onclick="setBlogLanguage('en')">English</button>
                         </div>
                     </div>
 
@@ -619,12 +697,46 @@
                  interestsDebugInfo.style.display = 'block';
                  interestsDebugInfo.innerHTML = `
                      <strong>Debug Info:</strong><br>
-                     API Fields: research_interests_text=${profile.research_interests_text ? 'found' : 'null'}, 
-                     interests_description=${profile.interests_description ? 'found' : 'null'}, 
+                     API Fields: research_interests_text=${profile.research_interests_text ? 'found' : 'null'},
+                     interests_description=${profile.interests_description ? 'found' : 'null'},
                      research_interests=${profile.research_interests ? 'found' : 'null'}<br>
                      Selected: ${researchInterests ? (typeof researchInterests + ': ' + (typeof researchInterests === 'string' ? researchInterests.substring(0, 50) + '...' : JSON.stringify(researchInterests))) : 'none'}
                  `;
              }
+
+            // System Profile section
+            const systemProfileSection = document.getElementById('systemProfileSection');
+            const rewriteInterestDisplay = document.getElementById('rewriteInterestDisplay');
+            if (profile.rewrite_interest || profile.profile_json) {
+                systemProfileSection.style.display = 'block';
+
+                if (profile.rewrite_interest) {
+                    rewriteInterestDisplay.textContent = profile.rewrite_interest;
+                } else {
+                    rewriteInterestDisplay.innerHTML = '<span style="color: var(--text-muted);">Profile will be generated after more engagement</span>';
+                }
+
+                const pj = profile.profile_json;
+                if (pj) {
+                    if (pj.persona_definition) {
+                        document.getElementById('personaSection').style.display = 'block';
+                        document.getElementById('personaDisplay').textContent = pj.persona_definition;
+                    }
+                    if (pj.ranking_heuristics && pj.ranking_heuristics.length > 0) {
+                        document.getElementById('heuristicsSection').style.display = 'block';
+                        document.getElementById('heuristicsList').innerHTML = pj.ranking_heuristics
+                            .map(h => `<li>${h}</li>`).join('');
+                    }
+                    // Negative constraints are always shown if profile_json exists
+                    document.getElementById('negativeConstraintsSection').style.display = 'block';
+                    renderNegativeConstraints(pj.negative_constraints || []);
+                }
+            } else {
+                systemProfileSection.style.display = 'none';
+            }
+
+            // Blog language toggle
+            updateLanguageButtons(profile.blog_language || 'zh');
         }
 
         async function handleSaveProfile(event) {
@@ -852,11 +964,103 @@
             }
         }
 
+        // Negative constraints management
+        function renderNegativeConstraints(constraints) {
+            const container = document.getElementById('negativeConstraintsList');
+            if (!constraints || constraints.length === 0) {
+                container.innerHTML = '<span style="color: var(--text-muted); font-size: 14px;">No negative constraints set</span>';
+                return;
+            }
+            container.innerHTML = constraints.map((c, i) =>
+                `<span class="constraint-chip" onclick="removeNegativeConstraint(${i})" title="Click to remove">${c} <span class="remove-icon">&times;</span></span>`
+            ).join('');
+        }
+
+        async function removeNegativeConstraint(index) {
+            if (!currentProfile || !currentProfile.profile_json) return;
+            const constraints = [...(currentProfile.profile_json.negative_constraints || [])];
+            const removed = constraints.splice(index, 1);
+            if (!confirm(`Remove constraint: "${removed[0]}"?`)) return;
+            await updateProfileJson({ negative_constraints: constraints });
+        }
+
+        async function addNegativeConstraint() {
+            const input = document.getElementById('newConstraintInput');
+            const value = input.value.trim();
+            if (!value) return;
+
+            const existing = currentProfile?.profile_json?.negative_constraints || [];
+            const constraints = [...existing, value];
+            input.value = '';
+            await updateProfileJson({ negative_constraints: constraints });
+        }
+
+        async function updateProfileJson(partialUpdate) {
+            try {
+                const token = window.AuthService.getToken();
+                const response = await fetch('/api/users/me/profile', {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ profile_json: partialUpdate })
+                });
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+                }
+                const updatedProfile = await response.json();
+                currentProfile = updatedProfile;
+                displayProfile(currentProfile);
+                showMessage('Profile updated successfully!', 'success');
+            } catch (error) {
+                console.error('Error updating profile:', error);
+                showMessage(error.message || 'Failed to update profile.', 'error');
+            }
+        }
+
+        // Blog language
+        function updateLanguageButtons(lang) {
+            const zhBtn = document.getElementById('langZhBtn');
+            const enBtn = document.getElementById('langEnBtn');
+            zhBtn.className = lang === 'zh' ? 'btn lang-active' : 'btn btn-secondary';
+            enBtn.className = lang === 'en' ? 'btn lang-active' : 'btn btn-secondary';
+        }
+
+        async function setBlogLanguage(lang) {
+            try {
+                const token = window.AuthService.getToken();
+                const response = await fetch('/api/users/me/profile', {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ blog_language: lang })
+                });
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+                }
+                const updatedProfile = await response.json();
+                currentProfile = updatedProfile;
+                updateLanguageButtons(lang);
+                showMessage(`Blog language set to ${lang === 'en' ? 'English' : 'Chinese'}!`, 'success');
+            } catch (error) {
+                console.error('Error updating blog language:', error);
+                showMessage(error.message || 'Failed to update blog language.', 'error');
+            }
+        }
+
         // Make functions globally available for onclick handlers
         window.toggleInterestsEdit = toggleInterestsEdit;
         window.cancelInterestsEdit = cancelInterestsEdit;
         window.saveInterests = saveInterests;
         window.testProfileAPI = testProfileAPI;
+        window.removeNegativeConstraint = removeNegativeConstraint;
+        window.addNegativeConstraint = addNegativeConstraint;
+        window.setBlogLanguage = setBlogLanguage;
     </script>
 </body>
 </html>

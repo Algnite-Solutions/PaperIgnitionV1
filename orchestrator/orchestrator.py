@@ -569,13 +569,15 @@ class PaperIgnitionOrchestrator:
 
                 recommend_config = self.models_config.get("recommendation", {})
                 recommend_limiter = self.model_rate_limiters.get_limiter("recommendation") if self.model_rate_limiters else None
+                blog_language = user.get("blog_language") or "zh"
                 run_Gemini_blog_generation_recommend(
                     all_papers,
                     output_path=output_path,
                     model_config=recommend_config,
                     rate_limiter=recommend_limiter,
                     token_tracker=self.token_tracker,
-                    username=username
+                    username=username,
+                    language=blog_language,
                 )
                 logging.info("Digest generation complete.")
 

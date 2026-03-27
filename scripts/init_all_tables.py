@@ -97,12 +97,18 @@ def init_user_database(config_path: str = None, drop_existing: bool = False):
         inspector = inspect(engine)
         print(f"Tables: {', '.join(inspector.get_table_names())}")
 
-        # Create composite index
+        # Create composite index and run migrations
         with engine.connect() as conn:
             conn.execute(text("""
                 CREATE INDEX IF NOT EXISTS idx_username_date
                 ON user_retrieve_results(username, recommendation_date)
             """))
+
+            # Migration: add blog_language column if missing
+            conn.execute(text("""
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS blog_language VARCHAR(10) DEFAULT 'zh'
+            """))
+
             conn.commit()
 
         # Seed research domains

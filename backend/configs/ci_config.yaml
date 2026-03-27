@@ -8,10 +8,6 @@ USER_DB:
   db_port: "5432"
   db_name: ci_user_db
 
-OPENAI_SERVICE:
-  base_url: https://api.deepseek.com
-  api_key: fake-key-for-ci
-
 dashscope:
   api_key: fake-key-for-ci
   base_url: https://dashscope.aliyuncs.com/compatible-mode/v1

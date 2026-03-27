@@ -38,7 +38,9 @@ class UserOut(UserBase):
     id: int
     is_active: Optional[bool] = True
     research_interests_text: Optional[str] = None
+    rewrite_interest: Optional[str] = None
     profile_json: Optional[Dict[str, Any]] = None
+    blog_language: Optional[str] = None
     username: str
     email: EmailStr
     research_domain_ids: Optional[List[int]] = None
@@ -60,3 +62,5 @@ class UserProfileUpdate(BaseModel):
     push_frequency: Optional[str] = None
     research_interests_text: Optional[str] = None
     research_domain_ids: Optional[List[int]] = None
+    profile_json: Optional[Dict[str, Any]] = None
+    blog_language: Optional[str] = None
