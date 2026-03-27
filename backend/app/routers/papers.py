@@ -326,14 +326,23 @@ async def find_similar_papers_bm25(
         if filter_conditions:
             where_clause = " AND " + " AND ".join(filter_conditions)
 
-        # 3. Build SQL query using fts_rank function
+        # 3. Build SQL query using CTE with built-in ts_rank function
+        # Use @@ operator in WHERE for GIN index acceleration, compute ts_rank once in CTE
         sql_str = f"""
-            SELECT p.doc_id, p.title, p.abstract, p.authors, p.categories,
-                   p.published_date, p.pdf_path, p."HTML_path",
-                   fts_rank(p.title, p.abstract, to_tsquery('english', :query)) AS similarity
-            FROM papers p
-            WHERE fts_rank(p.title, p.abstract, to_tsquery('english', :query)) > 0
-            {where_clause}
+            WITH ranked AS (
+                SELECT p.doc_id, p.title, p.abstract, p.authors, p.categories,
+                       p.published_date, p.pdf_path, p."HTML_path",
+                       ts_rank(
+                           to_tsvector('english', coalesce(p.title, '') || ' ' || coalesce(p.abstract, '')),
+                           plainto_tsquery('english', :query)
+                       ) AS similarity
+                FROM papers p
+                WHERE to_tsvector('english', coalesce(p.title, '') || ' ' || coalesce(p.abstract, ''))
+                      @@ plainto_tsquery('english', :query)
+                {where_clause}
+            )
+            SELECT * FROM ranked
+            WHERE similarity > 0
             ORDER BY similarity DESC
             LIMIT :limit
         """
