@@ -54,7 +54,6 @@ def _format_figure_info(figure_chunks, data_path: str) -> str:
     for fig in figure_chunks:
         title = getattr(fig, "title", "") or ""
         caption = getattr(fig, "caption", "") or ""
-        image_path = getattr(fig, "image_path", "") or ""
 
         # Extract figure number from title like "2501.01234_Figure1"
         fig_num = ""
