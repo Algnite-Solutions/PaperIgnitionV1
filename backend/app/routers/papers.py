@@ -7,6 +7,7 @@ Prefix: /papers
 import logging
 import os
 import re
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import httpx
@@ -251,6 +252,136 @@ async def find_similar_papers(
     except Exception as e:
         logger.error(f"Error in find_similar: {e}")
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
+
+
+# ==================== Find Similar BM25 Endpoint ====================
+
+@router.post("/find_similar_bm25", response_model=FindSimilarResponse)
+async def find_similar_papers_bm25(
+    request_body: FindSimilarRequest,
+    db: AsyncSession = Depends(get_paper_db)
+):
+    """
+    Full-text similarity search using BM25 (PostgreSQL ts_rank).
+
+    Uses the fts_rank function for ranking papers based on title and abstract
+    relevance to the query. No external API calls required.
+
+    Flow:
+    1. Parse query into tsquery
+    2. Build SQL query with filters
+    3. Query papers table using fts_rank function
+    4. Return results ranked by BM25 score
+    """
+    try:
+        # 1. Convert query to tsquery (handle simple AND/OR for now)
+        # Replace commas and multiple spaces with & for AND logic
+        query_terms = request_body.query.strip()
+        if not query_terms:
+            raise HTTPException(status_code=400, detail="Query cannot be empty")
+
+        # Clean and prepare query for tsquery
+        # Replace common separators with & (AND)
+        cleaned_query = query_terms.replace(',', ' ').replace(';', ' ').replace('|', ' ')
+        # Remove extra spaces
+        cleaned_query = ' '.join(cleaned_query.split())
+        # Join terms with & for AND logic
+        tsquery_str = ' & '.join(cleaned_query.split())
+
+        logger.debug(f"BM25 query: '{query_terms}' -> tsquery: '{tsquery_str}'")
+
+        # 2. Build SQL query with parameters
+        params = {
+            "query": tsquery_str,
+            "limit": request_body.top_k,
+        }
+
+        # Collect filter conditions
+        filter_conditions = []
+        if request_body.filters:
+            if "exclude" in request_body.filters and "doc_ids" in request_body.filters["exclude"]:
+                exclude_ids = request_body.filters["exclude"]["doc_ids"]
+                if exclude_ids:
+                    placeholders = ", ".join(f":exc_{i}" for i in range(len(exclude_ids)))
+                    filter_conditions.append(f"p.doc_id NOT IN ({placeholders})")
+                    for i, doc_id in enumerate(exclude_ids):
+                        params[f"exc_{i}"] = doc_id
+
+            if "include" in request_body.filters and "published_date" in request_body.filters["include"]:
+                date_range = request_body.filters["include"]["published_date"]
+                if len(date_range) == 2:
+                    filter_conditions.append("p.published_date >= :start_date AND p.published_date <= :end_date")
+                    # Convert string dates to datetime objects if needed
+                    start_date = date_range[0]
+                    end_date = date_range[1]
+                    if isinstance(start_date, str):
+                        start_date = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+                    if isinstance(end_date, str):
+                        end_date = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+                    params["start_date"] = start_date
+                    params["end_date"] = end_date
+
+        # Build WHERE clause
+        where_clause = ""
+        if filter_conditions:
+            where_clause = " AND " + " AND ".join(filter_conditions)
+
+        # 3. Build SQL query using CTE with built-in ts_rank function
+        # Use @@ operator in WHERE for GIN index acceleration, compute ts_rank once in CTE
+        sql_str = f"""
+            WITH ranked AS (
+                SELECT p.doc_id, p.title, p.abstract, p.authors, p.categories,
+                       p.published_date, p.pdf_path, p."HTML_path",
+                       ts_rank(
+                           to_tsvector('english', coalesce(p.title, '') || ' ' || coalesce(p.abstract, '')),
+                           plainto_tsquery('english', :query)
+                       ) AS similarity
+                FROM papers p
+                WHERE to_tsvector('english', coalesce(p.title, '') || ' ' || coalesce(p.abstract, ''))
+                      @@ plainto_tsquery('english', :query)
+                {where_clause}
+            )
+            SELECT * FROM ranked
+            WHERE similarity > 0
+            ORDER BY similarity DESC
+            LIMIT :limit
+        """
+
+        # 4. Execute query
+        logger.debug(f"BM25 SQL params: query={params.get('query')}, limit={params.get('limit')}, "
+                     f"start_date={params.get('start_date')}, end_date={params.get('end_date')}, "
+                     f"exclude_count={sum(1 for k in params if k.startswith('exc_'))}")
+        result = await db.execute(text(sql_str), params)
+        rows = result.fetchall()
+
+        # 5. Build response
+        papers = []
+        for row in rows:
+            papers.append(SimilarPaper(
+                doc_id=row[0],
+                title=row[1] or "",
+                abstract=row[2] or "",
+                authors=row[3] or [],
+                categories=row[4] or [],
+                published_date=str(row[5]) if row[5] else None,
+                pdf_path=row[6],
+                html_path=row[7],
+                similarity=float(row[8]) if row[8] else 0.0
+            ))
+
+        logger.info(f"BM25 found {len(papers)} similar papers for query: {request_body.query[:50]}...")
+
+        return FindSimilarResponse(
+            results=papers,
+            query=request_body.query,
+            total=len(papers)
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in find_similar_bm25: {e}")
+        raise HTTPException(status_code=500, detail=f"BM25 search failed: {str(e)}")
 
 
 # ==================== Image Helpers ====================
