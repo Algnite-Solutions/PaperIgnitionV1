@@ -1,0 +1,63 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: 'Inter', 'Noto Sans', ui-sans-serif, system-ui, sans-serif;
+  --color-brand: #dc2626;
+  --color-brand-dark: #b91c1c;
+}
+
+/* KaTeX overrides */
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.5rem 0;
+}
+
+/* Highlight.js overrides for dark mode */
+.dark pre code.hljs {
+  background: #1e293b;
+}
+
+/* Prose image styling — no borders, blend with background */
+.prose img {
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+  background: transparent;
+  cursor: zoom-in;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Medium zoom overlay */
+.medium-zoom-overlay {
+  z-index: 50;
+}
+.medium-zoom-image--opened {
+  z-index: 51;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Skeleton shimmer animation */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, transparent 25%, rgba(0,0,0,0.05) 50%, transparent 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+.dark .animate-shimmer {
+  background: linear-gradient(90deg, transparent 25%, rgba(255,255,255,0.05) 50%, transparent 75%);
+  background-size: 200% 100%;
+}

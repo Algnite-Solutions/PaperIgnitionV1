@@ -18,7 +18,7 @@ jobs:
       - name: Sync code to server
         uses: burnett01/rsync-deployments@7.0.1
         with:
-          switches: -avz --delete --exclude='.git' --exclude='.env' --exclude='__pycache__' --exclude='*.pyc' --exclude='paperignition-backend.log'
+          switches: -avz --delete --exclude='.git' --exclude='.env' --exclude='__pycache__' --exclude='*.pyc' --exclude='paperignition-backend.log' --exclude='frontend/node_modules' --exclude='frontend/dist'
           path: ./
           remote_path: /root/PaperIgnitionV1/
           remote_host: ${{ secrets.DEPLOY_HOST }}
@@ -38,11 +38,17 @@ jobs:
 
             cd /root/PaperIgnitionV1
 
-            echo "=== Installing dependencies ==="
+            echo "=== Installing Python dependencies ==="
             $PIP install -e .
 
+            echo "=== Building frontend ==="
+            cd /root/PaperIgnitionV1/frontend
+            npm ci
+            npm run build
+            cd /root/PaperIgnitionV1
+
             echo "=== Updating nginx config ==="
-            cp /root/PaperIgnitionV1/beta_frontend/nginx.conf /etc/nginx/sites-available/paperignition
+            cp /root/PaperIgnitionV1/frontend/nginx.conf /etc/nginx/sites-available/paperignition
             nginx -t && systemctl reload nginx
 
             echo "=== Restarting backend ==="
