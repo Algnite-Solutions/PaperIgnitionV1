@@ -37,6 +37,14 @@ class User(Base):
     is_verified = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    # Email verification
+    email_verification_token = Column(String(64), nullable=True, index=True)
+    email_verification_expires_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Password reset
+    password_reset_token = Column(String(64), nullable=True, index=True)
+    password_reset_expires_at = Column(DateTime(timezone=True), nullable=True)
     # 关联关系
     profile_json = Column(JSONB, nullable=True)  # 用户的个性化配置文件结构
     research_interests_text = Column(Text, nullable=True)  # 用户主观研究兴趣描述文本

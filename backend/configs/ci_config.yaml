@@ -24,3 +24,6 @@ aliyun_rds:
 
 aliyun_oss:
   enabled: false
+
+smtp:
+  enabled: false

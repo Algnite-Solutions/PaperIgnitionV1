@@ -5,6 +5,7 @@ export interface UserProfile {
   username: string
   email: string
   is_active: boolean
+  is_verified: boolean
   research_interests_text: string | null
   rewrite_interest: string | null
   profile_json: Record<string, unknown> | null

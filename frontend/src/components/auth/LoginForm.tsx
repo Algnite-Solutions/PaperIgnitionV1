@@ -67,15 +67,22 @@ export function LoginForm() {
           required
           autoComplete="email"
         />
-        <Input
-          label="Password"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Enter your password"
-          required
-          autoComplete="current-password"
-        />
+        <div className="space-y-1">
+          <Input
+            label="Password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Enter your password"
+            required
+            autoComplete="current-password"
+          />
+          <div className="text-right">
+            <Link to="/forgot-password" className="text-xs text-brand hover:text-brand-dark">
+              Forgot password?
+            </Link>
+          </div>
+        </div>
 
         {error && (
           <p className="text-sm text-red-500 bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2">
