@@ -29,3 +29,11 @@ aliyun_oss:
   endpoint: ${ALIYUN_OSS_ENDPOINT}
   bucket_name: ${ALIYUN_OSS_BUCKET}
   upload_prefix: imgs/
+
+smtp:
+  enabled: true
+  host: ${SMTP_HOST}
+  port: ${SMTP_PORT}
+  username: ${SMTP_USERNAME}
+  password: ${SMTP_PASSWORD}
+  from_address: ${SMTP_FROM_ADDRESS}

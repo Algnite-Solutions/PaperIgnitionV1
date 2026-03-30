@@ -37,6 +37,7 @@ class ActivityData(BaseModel):
 class UserOut(UserBase):
     id: int
     is_active: Optional[bool] = True
+    is_verified: Optional[bool] = False
     research_interests_text: Optional[str] = None
     rewrite_interest: Optional[str] = None
     profile_json: Optional[Dict[str, Any]] = None

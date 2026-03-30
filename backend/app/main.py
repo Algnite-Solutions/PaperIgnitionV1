@@ -41,6 +41,7 @@ async def lifespan(app: FastAPI):
 
     app.state.db_manager = db_manager
     app.state.config = config
+    app.state.smtp_config = config.get("smtp", {"enabled": False})
 
     yield
 

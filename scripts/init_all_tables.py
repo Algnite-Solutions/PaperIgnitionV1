@@ -109,6 +109,29 @@ def init_user_database(config_path: str = None, drop_existing: bool = False):
                 ALTER TABLE users ADD COLUMN IF NOT EXISTS blog_language VARCHAR(10) DEFAULT 'zh'
             """))
 
+            # Migration: email verification + password reset columns
+            conn.execute(text("""
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_token VARCHAR(64)
+            """))
+            conn.execute(text("""
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_expires_at TIMESTAMP WITH TIME ZONE
+            """))
+            conn.execute(text("""
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_token VARCHAR(64)
+            """))
+            conn.execute(text("""
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_expires_at TIMESTAMP WITH TIME ZONE
+            """))
+            # Indexes for token lookups
+            conn.execute(text("""
+                CREATE INDEX IF NOT EXISTS ix_users_email_verification_token
+                ON users(email_verification_token)
+            """))
+            conn.execute(text("""
+                CREATE INDEX IF NOT EXISTS ix_users_password_reset_token
+                ON users(password_reset_token)
+            """))
+
             conn.commit()
 
         # Seed research domains

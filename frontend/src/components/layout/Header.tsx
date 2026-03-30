@@ -1,9 +1,12 @@
 import { Link, useLocation } from 'react-router'
 import { LogOut, Menu, User } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuthStore } from '../../stores/auth'
 import { ThemeToggle } from '../ui/ThemeToggle'
 import { MobileNav } from './MobileNav'
+import { getMe } from '../../api/users'
+import { resendVerification } from '../../api/auth'
+import { ApiError } from '../../api/client'
 
 const navLinks = [
   { to: '/', label: 'Explore' },
@@ -15,10 +18,68 @@ export function Header() {
   const { user, isLoggedIn, logout } = useAuthStore()
   const location = useLocation()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [isVerified, setIsVerified] = useState<boolean | null>(null)
+  const [nudgeDismissed, setNudgeDismissed] = useState(false)
+  const [resendLoading, setResendLoading] = useState(false)
+  const [resendMsg, setResendMsg] = useState('')
+
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setIsVerified(null)
+      return
+    }
+    getMe()
+      .then((profile) => setIsVerified(profile.is_verified))
+      .catch(() => setIsVerified(null))
+  }, [isLoggedIn])
+
+  async function handleResend() {
+    setResendLoading(true)
+    try {
+      await resendVerification()
+      setResendMsg('Verification email sent!')
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 429) {
+        setResendMsg('Too frequent — try again in 1 minute.')
+      } else {
+        setResendMsg('Could not resend. Try again later.')
+      }
+    } finally {
+      setResendLoading(false)
+    }
+  }
+
+  const showNudge = isLoggedIn && isVerified === false && !nudgeDismissed
 
   return (
     <>
       <header className="sticky top-0 z-40 border-b border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-950/80 backdrop-blur-md">
+        {showNudge && (
+          <div className="bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 px-4 py-2 flex items-center justify-between text-sm text-amber-800 dark:text-amber-300">
+            <span>
+              Please verify your email to unlock all features.{' '}
+              {resendMsg ? (
+                <span className="font-medium">{resendMsg}</span>
+              ) : (
+                <button
+                  onClick={handleResend}
+                  disabled={resendLoading}
+                  className="underline font-medium hover:text-amber-900 dark:hover:text-amber-200 cursor-pointer disabled:opacity-50"
+                >
+                  {resendLoading ? 'Sending…' : 'Resend'}
+                </button>
+              )}
+            </span>
+            <button
+              onClick={() => setNudgeDismissed(true)}
+              className="ml-4 text-amber-600 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-200 cursor-pointer"
+              aria-label="Dismiss"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
         <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-0.5 text-xl font-bold">

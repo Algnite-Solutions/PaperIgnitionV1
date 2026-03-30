@@ -7,6 +7,9 @@ import { RegisterPage } from './pages/RegisterPage'
 import { FavoritesPage } from './pages/FavoritesPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { SearchPage } from './pages/SearchPage'
+import { VerifyEmailPage } from './pages/VerifyEmailPage'
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
+import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
 
 
@@ -18,6 +21,9 @@ export const router = createBrowserRouter([
       { path: 'paper/:id', element: <PaperPage /> },
       { path: 'login', element: <LoginPage /> },
       { path: 'register', element: <RegisterPage /> },
+      { path: 'verify-email', element: <VerifyEmailPage /> },
+      { path: 'forgot-password', element: <ForgotPasswordPage /> },
+      { path: 'reset-password', element: <ResetPasswordPage /> },
       {
         path: 'favorites',
         element: <ProtectedRoute><FavoritesPage /></ProtectedRoute>,

@@ -13,6 +13,7 @@ export function RegisterForm() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [registered, setRegistered] = useState(false)
 
   const { register } = useAuthStore()
   const navigate = useNavigate()
@@ -33,7 +34,7 @@ export function RegisterForm() {
     setLoading(true)
     try {
       await register(email, password, username)
-      navigate('/')
+      setRegistered(true)
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.status === 400 ? 'Email already registered' : err.message)
@@ -43,6 +44,27 @@ export function RegisterForm() {
     } finally {
       setLoading(false)
     }
+  }
+
+  if (registered) {
+    return (
+      <div className="w-full max-w-sm space-y-6 text-center">
+        <div className="text-5xl">📧</div>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Check your email</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          We sent a verification link to <strong>{email}</strong>. Click the link to verify your account.
+        </p>
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          You can still use the app while unverified.
+        </p>
+        <button
+          onClick={() => navigate('/')}
+          className="inline-block rounded-lg bg-brand px-6 py-2 text-sm font-medium text-white hover:bg-brand-dark transition-colors"
+        >
+          Continue to Feed
+        </button>
+      </div>
+    )
   }
 
   return (

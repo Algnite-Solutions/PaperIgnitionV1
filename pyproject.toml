@@ -23,6 +23,7 @@ dependencies = [
     "requests",
     "openai",
     "pydantic[email]",
+    "aiosmtplib",
 ]
 
 [project.optional-dependencies]
