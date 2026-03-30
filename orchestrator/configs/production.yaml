@@ -2,8 +2,8 @@ backend_service:
   host: ${APP_SERVICE_HOST}
 
 paper_pull:
-  max_workers: 8
-  time_slots_count: 3
+  max_workers: 1
+  time_slots_count: 5
   location: cloud
   count_delay: 2
   max_papers: null
