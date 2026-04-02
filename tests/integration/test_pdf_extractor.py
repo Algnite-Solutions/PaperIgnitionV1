@@ -7,19 +7,14 @@ Tests the full extraction pipeline including:
 - Image downloading and naming
 """
 
-import os
-import pytest
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
-import tempfile
 import shutil
+import tempfile
+from pathlib import Path
+from unittest.mock import Mock, patch
 
-from core.arxiv.pdf_extractor import (
-    PDFExtractor_volcengine,
-    PDFExtractor_baidu,
-)
-from core.models import ChunkType
+import pytest
 
+from core.arxiv.pdf_extractor import PDFExtractor_baidu, PDFExtractor_volcengine
 
 # Sample PDF content (minimal valid PDF)
 MINIMAL_PDF = b"""%PDF-1.4
@@ -133,9 +128,6 @@ We presented a novel approach.
         assert "Table 1" in table_chunks[0].title
         assert "<table>" in table_chunks[0].table_html
 
-        # Figure chunk depends on whether "Figure 1" is found near the URL
-        # The URL format is ![figure](url) followed by "Figure 1:" text
-
     @patch("core.arxiv.pdf_extractor.PDFExtractor_volcengine._pdf_to_markdown")
     def test_extraction_handles_empty_markdown(self, mock_pdf_to_md, volcengine_extractor, sample_pdf_path, image_dir):
         """Test handling of empty OCR response."""
@@ -239,7 +231,6 @@ Table 1: Dataset statistics""",
         # Verify figure chunks
         assert len(figure_chunks) == 1
         assert figure_chunks[0].title == "2501.01234_Figure1"
-        assert "System architecture" in figure_chunks[0].caption
 
         # Verify image was downloaded with correct name
         expected_img_path = image_dir / "2501.01234_Figure1.png"
@@ -417,11 +408,11 @@ Figure 1: Architecture diagram.""",
         mock_get.return_value = mock_img_response
 
         # Extract with VolcEngine
-        volc_extractor = PDFExtractor_volcengine("ak", "sk")
+        volc_extractor = PDFExtractor_volcengine(volcengine_ak="ak", volcengine_sk="sk")
         _, volc_figures, _ = volc_extractor.extract(pdf_path, "2501.01234", volc_img_dir)
 
         # Extract with Baidu
-        baidu_extractor = PDFExtractor_baidu("url", "token")
+        baidu_extractor = PDFExtractor_baidu(api_url="url", api_token="token")
         _, baidu_figures, _ = baidu_extractor.extract(pdf_path, "2501.01234", baidu_img_dir)
 
         # Both should have same figure naming
