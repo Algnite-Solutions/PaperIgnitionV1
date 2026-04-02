@@ -3,9 +3,9 @@
 import json
 import logging
 import os
-from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from pathlib import Path
+from time import sleep as _sleep
 from typing import TYPE_CHECKING, List, Optional
 from zoneinfo import ZoneInfo
 
@@ -204,46 +204,51 @@ class PaperPullService:
 
         Returns DocSet objects with metadata only (title, abstract, authors, etc.).
         Content extraction is deferred to extract_paper() for selected papers.
+        Fetches sequentially with delays between slots to avoid arXiv rate limits.
         """
         time_slots, num_slots, max_papers_per_slot = self._fetch_papers_common(time)
 
         all_papers = []
-        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            futures = []
-            for i in range(num_slots):
-                start_str = time_slots[i]
-                end_str = time_slots[i + 1]
-                futures.append(
-                    executor.submit(self._fetch_metadata_for_timeslot, start_str, end_str, max_papers_per_slot)
-                )
-
-            for f in futures:
-                result = f.result()
+        for i in range(num_slots):
+            start_str = time_slots[i]
+            end_str = time_slots[i + 1]
+            try:
+                result = self._fetch_metadata_for_timeslot(start_str, end_str, max_papers_per_slot)
                 if result:
                     all_papers.extend(result)
+            except Exception as e:
+                self.logger.error("Failed to fetch slot %s-%s: %s (continuing with next slot)", start_str, end_str, e)
+
+            # Wait between slots to avoid rate limiting
+            if i < num_slots - 1:
+                self.logger.info("Waiting 30s before next time slot...")
+                _sleep(30)
 
         self.logger.info("Total metadata fetched: %d papers", len(all_papers))
         return all_papers
 
     def fetch_daily_papers(self, time: Optional[str] = None) -> List[DocSet]:
-        """Fetch daily papers from arXiv with full content extraction."""
+        """Fetch daily papers from arXiv with full content extraction.
+
+        Fetches sequentially with delays between slots to avoid arXiv rate limits.
+        """
         time_slots, num_slots, max_papers_per_slot = self._fetch_papers_common(time)
 
-        # Fetch papers in parallel using thread pool
         newly_fetched_ids = set()
-        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            futures = []
-            for i in range(num_slots):
-                start_str = time_slots[i]
-                end_str = time_slots[i + 1]
-                futures.append(
-                    executor.submit(self._run_for_timeslot, start_str, end_str, max_papers_per_slot)
-                )
-
-            for f in futures:
-                result = f.result()
+        for i in range(num_slots):
+            start_str = time_slots[i]
+            end_str = time_slots[i + 1]
+            try:
+                result = self._run_for_timeslot(start_str, end_str, max_papers_per_slot)
                 if result:
                     newly_fetched_ids.update(result)
+            except Exception as e:
+                self.logger.error("Failed to process slot %s-%s: %s (continuing with next slot)", start_str, end_str, e)
+
+            # Wait between slots to avoid rate limiting
+            if i < num_slots - 1:
+                self.logger.info("Waiting 30s before next time slot...")
+                _sleep(30)
 
         self.logger.info("Newly fetched paper IDs: %d", len(newly_fetched_ids))
 

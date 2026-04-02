@@ -1,12 +1,17 @@
 """ArxivClient: query arXiv API and return paper metadata. No file downloads."""
 
 import logging
+import time
 
 import arxiv
 
 from core.models import DocSet
 
 logger = logging.getLogger(__name__)
+
+# Retry config for arXiv API calls
+_MAX_RETRIES = 3
+_INITIAL_BACKOFF = 30  # seconds — arXiv needs 30-60s cooldown after a 429
 
 
 class ArxivClient:
@@ -52,8 +57,26 @@ class ArxivClient:
             categories, start_time, end_time, self.max_results,
         )
 
-        client = arxiv.Client()
-        results = list(client.results(search))
+        # delay_seconds: wait between paginated requests within one query
+        # num_retries: arxiv library's own retry count (low — we handle retries ourselves with longer backoff)
+        client = arxiv.Client(delay_seconds=10.0, num_retries=2)
+
+        results = []
+        for attempt in range(1, _MAX_RETRIES + 1):
+            try:
+                results = list(client.results(search))
+                break
+            except (arxiv.ArxivError, arxiv.HTTPError, arxiv.UnexpectedEmptyPageError) as e:
+                if attempt == _MAX_RETRIES:
+                    logger.error("arXiv query failed after %d attempts: %s", _MAX_RETRIES, e)
+                    return []
+                backoff = _INITIAL_BACKOFF * (2 ** (attempt - 1))
+                logger.warning("arXiv query attempt %d/%d failed (%s), retrying in %ds", attempt, _MAX_RETRIES, e, backoff)
+                time.sleep(backoff)
+            except Exception as e:
+                logger.error("Unexpected error querying arXiv: %s", e)
+                return []
+
         logger.info("arXiv returned %d results", len(results))
 
         papers: list[DocSet] = []
