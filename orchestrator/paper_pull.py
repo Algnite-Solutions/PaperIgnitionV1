@@ -9,7 +9,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, List, Optional
 from zoneinfo import ZoneInfo
 
-from core.arxiv import ArxivClient, PDFExtractor, download_pdf
+from core.arxiv import ArxivClient, download_pdf
+from core.arxiv.pdf_extractor import PDFExtractor_baidu
 from core.models import DocSet
 
 if TYPE_CHECKING:
@@ -22,7 +23,7 @@ class PaperPullService:
     """
     Service for pulling and extracting papers from arXiv.
 
-    Uses PDF extraction with OCR (VolcEngine).
+    Uses PDF extraction with OCR (Baidu).
     """
 
     def __init__(
@@ -34,6 +35,8 @@ class PaperPullService:
         count_delay: int = 1,
         max_papers: Optional[int] = None,
         storage_manager: Optional["LocalStorageManager"] = None,
+        baidu_ocr_url: Optional[str] = None,
+        baidu_ocr_token: Optional[str] = None,
     ):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.max_workers = max_workers
@@ -62,9 +65,9 @@ class PaperPullService:
         # External exclude IDs (populated from RDS before fetch)
         self.exclude_ids: set = set()
 
-        # VolcEngine credentials for PDF OCR fallback
-        self.volcengine_ak = os.getenv("VOLCENGINE_AK", "")
-        self.volcengine_sk = os.getenv("VOLCENGINE_SK", "")
+        # Baidu OCR credentials for PDF OCR
+        self.baidu_ocr_url = baidu_ocr_url or os.getenv("BAIDU_OCR_URL", "")
+        self.baidu_ocr_token = baidu_ocr_token or os.getenv("BAIDU_OCR_TOKEN", "")
 
         self._setup_directories()
 
@@ -102,18 +105,22 @@ class PaperPullService:
         return result
 
     def _extract_single_paper(self, paper: DocSet) -> DocSet:
-        """Extract content for a single paper via PDF OCR."""
+        """Extract content for a single paper via PDF OCR (Baidu)."""
         doc_id = paper.doc_id
+
         # PDF OCR
-        if not self.volcengine_ak or not self.volcengine_sk:
-            self.logger.warning("No VolcEngine credentials, skipping PDF OCR extraction for %s", doc_id)
+        if not self.baidu_ocr_url or not self.baidu_ocr_token:
+            self.logger.warning("No Baidu OCR credentials, skipping PDF OCR extraction for %s", doc_id)
             return paper
 
         pdf_url = f"https://arxiv.org/pdf/{doc_id}.pdf"
         pdf_path = download_pdf(pdf_url, self.pdf_folder_path, f"{doc_id}.pdf")
         if pdf_path:
             try:
-                pdf_extractor = PDFExtractor(self.volcengine_ak, self.volcengine_sk)
+                pdf_extractor = PDFExtractor_baidu(
+                    api_url=self.baidu_ocr_url,
+                    api_token=self.baidu_ocr_token,
+                )
                 text_chunks, figure_chunks, table_chunks = pdf_extractor.extract(
                     pdf_path, doc_id, str(self.image_folder_path)
                 )

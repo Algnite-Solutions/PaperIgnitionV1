@@ -3,10 +3,10 @@ backend_service:
 
 paper_pull:
   max_workers: 8
-  time_slots_count: 3
+  time_slots_count: 1
   location: cloud
   count_delay: 2
-  max_papers: null
+  max_papers: 1
   lazy_mode: true  # metadata only on fetch; extract content only for recommended papers
 
 blog_generation:
@@ -37,7 +37,7 @@ models:
       warning_threshold: 0.8
 
 stages:
-  fetch_daily_papers: true
+  fetch_daily_papers: false
   generate_per_user_blogs: true
 
 job_execution:
@@ -61,7 +61,7 @@ aliyun_rds:
   db_host: ${DB_HOST}
   db_port: ${DB_PORT}
   db_name_paper: ${DB_NAME_PAPER}
-  sslmode: require
+  sslmode: disable
 
 aliyun_oss:
   enabled: true
