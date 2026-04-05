@@ -111,63 +111,68 @@ function SystemProfileSection({ profile }: { profile: UserProfile }) {
       )}
 
       {/* Ranking Heuristics */}
-      {profileJson?.ranking_heuristics && profileJson.ranking_heuristics.length > 0 && (
-        <div>
-          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Ranking Heuristics</h3>
-          <ul className="mt-1 space-y-1 text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 rounded-lg px-3 py-2">
-            {profileJson.ranking_heuristics.map((h, i) => (
-              <li key={i} className="flex gap-2">
-                <span className="text-gray-400">-</span>
-                {h}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <EditableChipList
+        label="Ranking Heuristics"
+        items={profileJson?.ranking_heuristics ?? []}
+        profileJson={(profileJson ?? {}) as Record<string, unknown>}
+        fieldKey="ranking_heuristics"
+        placeholder="e.g., prefer empirical over theoretical"
+        successMessage="Ranking heuristics updated"
+      />
 
       {/* Negative Constraints */}
-      {profileJson?.negative_constraints && profileJson.negative_constraints.length > 0 && (
-        <NegativeConstraints
-          constraints={profileJson.negative_constraints}
-          profileJson={profileJson as Record<string, unknown>}
-        />
-      )}
+      <EditableChipList
+        label="Negative Constraints"
+        items={profileJson?.negative_constraints ?? []}
+        profileJson={(profileJson ?? {}) as Record<string, unknown>}
+        fieldKey="negative_constraints"
+        placeholder="e.g., surveys without experiments"
+        successMessage="Constraints updated"
+      />
     </section>
   )
 }
 
-function NegativeConstraints({
-  constraints,
+function EditableChipList({
+  label,
+  items,
   profileJson,
+  fieldKey,
+  placeholder,
+  successMessage,
 }: {
-  constraints: string[]
+  label: string
+  items: string[]
   profileJson: Record<string, unknown>
+  fieldKey: string
+  placeholder: string
+  successMessage: string
 }) {
-  const [items, setItems] = useState(constraints)
+  const [localItems, setLocalItems] = useState(items)
   const [adding, setAdding] = useState(false)
   const [newText, setNewText] = useState('')
   const queryClient = useQueryClient()
 
   const save = useMutation({
     mutationFn: (updated: string[]) =>
-      updateProfile({ profile_json: { ...profileJson, negative_constraints: updated } }),
+      updateProfile({ profile_json: { ...profileJson, [fieldKey]: updated } }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['profile'] })
-      toast('success', 'Constraints updated')
+      toast('success', successMessage)
     },
     onError: () => toast('error', 'Failed to update'),
   })
 
   function handleRemove(index: number) {
-    const updated = items.filter((_, i) => i !== index)
-    setItems(updated)
+    const updated = localItems.filter((_, i) => i !== index)
+    setLocalItems(updated)
     save.mutate(updated)
   }
 
   function handleAdd() {
     if (!newText.trim()) return
-    const updated = [...items, newText.trim()]
-    setItems(updated)
+    const updated = [...localItems, newText.trim()]
+    setLocalItems(updated)
     setNewText('')
     setAdding(false)
     save.mutate(updated)
@@ -176,7 +181,7 @@ function NegativeConstraints({
   return (
     <div>
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Negative Constraints</h3>
+        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">{label}</h3>
         <button
           onClick={() => setAdding(true)}
           className="text-xs text-brand hover:text-brand-dark cursor-pointer"
@@ -185,7 +190,7 @@ function NegativeConstraints({
         </button>
       </div>
       <div className="mt-2 flex flex-wrap gap-2">
-        {items.map((c, i) => (
+        {localItems.map((c, i) => (
           <span
             key={i}
             className="inline-flex items-center gap-1 rounded-full bg-gray-100 dark:bg-gray-800 px-3 py-1 text-xs text-gray-600 dark:text-gray-400"
@@ -199,7 +204,7 @@ function NegativeConstraints({
             </button>
           </span>
         ))}
-        {items.length === 0 && !adding && (
+        {localItems.length === 0 && !adding && (
           <span className="text-xs text-gray-400 italic">None set</span>
         )}
       </div>
@@ -210,7 +215,7 @@ function NegativeConstraints({
             onChange={(e) => setNewText(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
             className="flex-1 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm outline-none focus:border-brand"
-            placeholder="e.g., surveys without experiments"
+            placeholder={placeholder}
             autoFocus
           />
           <Button onClick={handleAdd} className="py-1.5 text-xs">Add</Button>

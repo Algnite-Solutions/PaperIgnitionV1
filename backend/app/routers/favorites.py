@@ -2,7 +2,6 @@ from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -22,7 +21,6 @@ class FavoriteRequest(BaseModel):
 
 
 class FavoriteResponse(BaseModel):
-    id: int
     paper_id: str
     title: str
     authors: str
@@ -47,7 +45,7 @@ async def add_to_favorites(
         existing_favorite = result.scalar_one_or_none()
 
         if existing_favorite:
-            raise HTTPException(status_code=400, detail="Paper already in favorites")
+            return {"message": "Paper already in favorites"}
 
         new_favorite = FavoritePaper(
             user_id=current_user.id,
@@ -60,18 +58,11 @@ async def add_to_favorites(
 
         db.add(new_favorite)
         await db.commit()
-        await db.refresh(new_favorite)
 
-        return {
-            "message": "Paper added to favorites",
-            "favorite_id": new_favorite.id
-        }
+        return {"message": "Paper added to favorites"}
 
     except HTTPException:
         raise
-    except IntegrityError:
-        await db.rollback()
-        raise HTTPException(status_code=400, detail="Paper already in favorites")
     except Exception:
         await db.rollback()
         raise HTTPException(status_code=500, detail="Failed to add favorite")
@@ -118,18 +109,17 @@ async def get_user_favorites(
         result = await db.execute(
             select(FavoritePaper).where(
                 FavoritePaper.user_id == current_user.id
-            ).order_by(FavoritePaper.id.desc())
+            ).order_by(FavoritePaper.created_at.desc())
         )
         favorites = result.scalars().all()
 
         return [
             FavoriteResponse(
-                id=fav.id,
                 paper_id=fav.paper_id,
                 title=fav.title,
                 authors=fav.authors,
                 abstract=fav.abstract,
-                url=fav.url
+                url=fav.url or ""
             )
             for fav in favorites
         ]
@@ -158,28 +148,6 @@ async def check_if_favorited(
 
     except Exception:
         raise HTTPException(status_code=500, detail="Failed to check favorite status")
-
-
-@router.get("/paper-ids", response_model=List[str])
-async def get_user_favorite_paper_ids(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """Get list of user's favorited paper IDs (lightweight)"""
-    try:
-        result = await db.execute(
-            select(FavoritePaper.paper_id).where(
-                FavoritePaper.user_id == current_user.id
-            )
-        )
-        paper_ids = result.scalars().all()
-        return paper_ids
-
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to get favorite paper IDs: {str(e)}"
-        )
 
 
 class BatchCheckRequest(BaseModel):

@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useParams, useSearchParams, useNavigate } from 'react-router'
 import { ArrowLeft, ExternalLink, Bookmark, Share2 } from 'lucide-react'
 import { useBlogContent } from '../hooks/useBlogContent'
-import { useFavoriteIds } from '../hooks/useFavoriteIds'
+import { useFavorites } from '../hooks/useFavorites'
 import { useToggleFavorite } from '../hooks/useToggleFavorite'
 import { useAuthStore } from '../stores/auth'
 import { BlogRenderer } from '../components/paper/BlogRenderer'
@@ -72,8 +72,8 @@ export function PaperPage() {
     return extractBlogTitle(content, metadata?.title)
   }, [content, metadata?.title])
 
-  const { data: favoriteIds = [] } = useFavoriteIds()
-  const isFavorited = favoriteIds.includes(paperId)
+  const { data: favorites = [] } = useFavorites()
+  const isFavorited = favorites.some((f) => f.paper_id === paperId)
   const toggleFavorite = useToggleFavorite()
 
   function handleFavorite() {
@@ -146,7 +146,8 @@ export function PaperPage() {
         <div className="mt-5 flex flex-wrap items-center gap-2">
           <button
             onClick={handleFavorite}
-            className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-medium transition-colors cursor-pointer ${
+            disabled={!metadata && !isFavorited}
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-medium transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
               isFavorited
                 ? 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400'
                 : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800'

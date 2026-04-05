@@ -73,9 +73,8 @@ class FavoritePaper(Base):
     """用户收藏的论文"""
     __tablename__ = "favorite_papers"
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"))
-    paper_id = Column(String(50), index=True)  # 论文外部ID (arXiv ID等)
+    user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
+    paper_id = Column(String(50), primary_key=True)  # 论文外部ID (arXiv ID等)
     title = Column(String(255))
     authors = Column(String(255))
     abstract = Column(Text, nullable=True)

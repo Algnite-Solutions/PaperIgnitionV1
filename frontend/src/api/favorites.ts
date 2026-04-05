@@ -1,16 +1,11 @@
 import { api } from './client'
 
 export interface FavoritePaper {
-  id: number
   paper_id: string
   title: string
   authors: string
   abstract: string
   url: string
-}
-
-export function getFavoriteIds(): Promise<string[]> {
-  return api.get<string[]>('/api/favorites/paper-ids')
 }
 
 export function getFavorites(): Promise<FavoritePaper[]> {

@@ -207,9 +207,9 @@ async def update_user_profile(
         current_user.blog_language = profile_data.blog_language
 
     if profile_data.profile_json is not None:
-        existing = current_user.profile_json or {}
-        existing.update(profile_data.profile_json)
-        current_user.profile_json = existing
+        merged = dict(current_user.profile_json or {})
+        merged.update(profile_data.profile_json)
+        current_user.profile_json = merged
 
     if profile_data.research_domain_ids is not None:
         result = await db.execute(select(ResearchDomain).where(ResearchDomain.id.in_(profile_data.research_domain_ids)))
@@ -234,7 +234,38 @@ async def update_user_profile(
         except Exception as e:
             logger.exception(f"Failed to create background translation task: {e}")
 
-    return current_user
+    research_domain_ids = [d.id for d in current_user.research_domains] if current_user.research_domains else []
+    favorite_count = await db.scalar(
+        select(func.count(FavoritePaper.id)).where(FavoritePaper.user_id == current_user.id)
+    )
+    viewed_count = await db.scalar(
+        select(func.count(UserPaperRecommendation.id)).where(
+            UserPaperRecommendation.username == current_user.username,
+            UserPaperRecommendation.viewed.is_(True)
+        )
+    )
+    days_active = 0
+    if current_user.created_at:
+        now = datetime.now(timezone.utc)
+        days_active = (now - current_user.created_at).days
+
+    return {
+        "id": current_user.id,
+        "username": current_user.username,
+        "email": current_user.email,
+        "is_active": current_user.is_active,
+        "is_verified": current_user.is_verified,
+        "research_interests_text": current_user.research_interests_text,
+        "rewrite_interest": current_user.rewrite_interest,
+        "profile_json": current_user.profile_json,
+        "blog_language": current_user.blog_language,
+        "research_domain_ids": research_domain_ids,
+        "activity_data": {
+            "favorite_count": favorite_count or 0,
+            "viewed_count": viewed_count or 0,
+            "days_active": days_active,
+        },
+    }
 
 
 @router.get("/all", response_model=List[UserOut])
