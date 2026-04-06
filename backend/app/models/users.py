@@ -50,6 +50,8 @@ class User(Base):
     research_interests_text = Column(Text, nullable=True)  # 用户主观研究兴趣描述文本
     rewrite_interest = Column(Text, nullable=True)  # LLM重写后的兴趣描述
     blog_language = Column(String(10), default="zh")  # Blog language preference: "zh" or "en"
+    profile_boost_requested = Column(Boolean, default=False)  # User clicked "Boost My Profile"
+    profile_last_extracted_at = Column(DateTime(timezone=True), nullable=True)  # Last profile extraction timestamp
     research_domains = relationship("ResearchDomain", secondary=user_domain_association, back_populates="users")
     favorite_papers = relationship("FavoritePaper", back_populates="user")
     recommended_papers = relationship("UserPaperRecommendation", back_populates="user")
@@ -73,9 +75,8 @@ class FavoritePaper(Base):
     """用户收藏的论文"""
     __tablename__ = "favorite_papers"
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"))
-    paper_id = Column(String(50), index=True)  # 论文外部ID (arXiv ID等)
+    user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
+    paper_id = Column(String(50), primary_key=True)  # 论文外部ID (arXiv ID等)
     title = Column(String(255))
     authors = Column(String(255))
     abstract = Column(Text, nullable=True)

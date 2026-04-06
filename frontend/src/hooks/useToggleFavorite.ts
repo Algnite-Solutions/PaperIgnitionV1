@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { addFavorite, removeFavorite } from '../api/favorites'
+import { addFavorite, removeFavorite, type FavoritePaper } from '../api/favorites'
 
 export function useToggleFavorite() {
   const queryClient = useQueryClient()
@@ -20,20 +20,25 @@ export function useToggleFavorite() {
         await addFavorite({ paper_id: paperId, ...paper })
       }
     },
-    onMutate: async ({ paperId, isFavorited }) => {
-      await queryClient.cancelQueries({ queryKey: ['favoriteIds'] })
-      const prev = queryClient.getQueryData<string[]>(['favoriteIds']) || []
-      const next = isFavorited ? prev.filter((id) => id !== paperId) : [...prev, paperId]
-      queryClient.setQueryData(['favoriteIds'], next)
+    onMutate: async ({ paperId, isFavorited, paper }) => {
+      await queryClient.cancelQueries({ queryKey: ['favorites'] })
+      const prev = queryClient.getQueryData<FavoritePaper[]>(['favorites']) || []
+      let next: FavoritePaper[]
+      if (isFavorited) {
+        next = prev.filter((f) => f.paper_id !== paperId)
+      } else if (paper) {
+        next = [{ paper_id: paperId, ...paper }, ...prev]
+      } else {
+        next = prev
+      }
+      queryClient.setQueryData(['favorites'], next)
       return { prev }
     },
     onError: (_err, _vars, ctx) => {
-      if (ctx?.prev) {
-        queryClient.setQueryData(['favoriteIds'], ctx.prev)
-      }
+      if (ctx?.prev) queryClient.setQueryData(['favorites'], ctx.prev)
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['favoriteIds'] })
+      queryClient.invalidateQueries({ queryKey: ['favorites'] })
     },
   })
 }

@@ -35,8 +35,11 @@ models:
       rpm: 10
       rpd: 1000
       warning_threshold: 0.8
+  profile_extraction:
+    model_id: gemini-3-flash-preview
 
 stages:
+  extract_user_profiles: true
   fetch_daily_papers: false
   generate_per_user_blogs: true
 

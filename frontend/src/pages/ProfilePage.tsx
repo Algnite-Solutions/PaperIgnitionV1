@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Save, Globe, Edit3, X } from 'lucide-react'
-import { getMe, updateProfile, type UserProfile } from '../api/users'
+import { Save, Globe, Edit3, X, Zap } from 'lucide-react'
+import { getMe, updateProfile, triggerBoost, type UserProfile } from '../api/users'
 import { Button } from '../components/ui/Button'
 import { Spinner } from '../components/ui/Spinner'
 import { toast } from '../components/ui/Toast'
@@ -111,63 +111,68 @@ function SystemProfileSection({ profile }: { profile: UserProfile }) {
       )}
 
       {/* Ranking Heuristics */}
-      {profileJson?.ranking_heuristics && profileJson.ranking_heuristics.length > 0 && (
-        <div>
-          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Ranking Heuristics</h3>
-          <ul className="mt-1 space-y-1 text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 rounded-lg px-3 py-2">
-            {profileJson.ranking_heuristics.map((h, i) => (
-              <li key={i} className="flex gap-2">
-                <span className="text-gray-400">-</span>
-                {h}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <EditableChipList
+        label="Ranking Heuristics"
+        items={profileJson?.ranking_heuristics ?? []}
+        profileJson={(profileJson ?? {}) as Record<string, unknown>}
+        fieldKey="ranking_heuristics"
+        placeholder="e.g., prefer empirical over theoretical"
+        successMessage="Ranking heuristics updated"
+      />
 
       {/* Negative Constraints */}
-      {profileJson?.negative_constraints && profileJson.negative_constraints.length > 0 && (
-        <NegativeConstraints
-          constraints={profileJson.negative_constraints}
-          profileJson={profileJson as Record<string, unknown>}
-        />
-      )}
+      <EditableChipList
+        label="Negative Constraints"
+        items={profileJson?.negative_constraints ?? []}
+        profileJson={(profileJson ?? {}) as Record<string, unknown>}
+        fieldKey="negative_constraints"
+        placeholder="e.g., surveys without experiments"
+        successMessage="Constraints updated"
+      />
     </section>
   )
 }
 
-function NegativeConstraints({
-  constraints,
+function EditableChipList({
+  label,
+  items,
   profileJson,
+  fieldKey,
+  placeholder,
+  successMessage,
 }: {
-  constraints: string[]
+  label: string
+  items: string[]
   profileJson: Record<string, unknown>
+  fieldKey: string
+  placeholder: string
+  successMessage: string
 }) {
-  const [items, setItems] = useState(constraints)
+  const [localItems, setLocalItems] = useState(items)
   const [adding, setAdding] = useState(false)
   const [newText, setNewText] = useState('')
   const queryClient = useQueryClient()
 
   const save = useMutation({
     mutationFn: (updated: string[]) =>
-      updateProfile({ profile_json: { ...profileJson, negative_constraints: updated } }),
+      updateProfile({ profile_json: { ...profileJson, [fieldKey]: updated } }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['profile'] })
-      toast('success', 'Constraints updated')
+      toast('success', successMessage)
     },
     onError: () => toast('error', 'Failed to update'),
   })
 
   function handleRemove(index: number) {
-    const updated = items.filter((_, i) => i !== index)
-    setItems(updated)
+    const updated = localItems.filter((_, i) => i !== index)
+    setLocalItems(updated)
     save.mutate(updated)
   }
 
   function handleAdd() {
     if (!newText.trim()) return
-    const updated = [...items, newText.trim()]
-    setItems(updated)
+    const updated = [...localItems, newText.trim()]
+    setLocalItems(updated)
     setNewText('')
     setAdding(false)
     save.mutate(updated)
@@ -176,7 +181,7 @@ function NegativeConstraints({
   return (
     <div>
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Negative Constraints</h3>
+        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">{label}</h3>
         <button
           onClick={() => setAdding(true)}
           className="text-xs text-brand hover:text-brand-dark cursor-pointer"
@@ -185,7 +190,7 @@ function NegativeConstraints({
         </button>
       </div>
       <div className="mt-2 flex flex-wrap gap-2">
-        {items.map((c, i) => (
+        {localItems.map((c, i) => (
           <span
             key={i}
             className="inline-flex items-center gap-1 rounded-full bg-gray-100 dark:bg-gray-800 px-3 py-1 text-xs text-gray-600 dark:text-gray-400"
@@ -199,7 +204,7 @@ function NegativeConstraints({
             </button>
           </span>
         ))}
-        {items.length === 0 && !adding && (
+        {localItems.length === 0 && !adding && (
           <span className="text-xs text-gray-400 italic">None set</span>
         )}
       </div>
@@ -210,7 +215,7 @@ function NegativeConstraints({
             onChange={(e) => setNewText(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
             className="flex-1 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm outline-none focus:border-brand"
-            placeholder="e.g., surveys without experiments"
+            placeholder={placeholder}
             autoFocus
           />
           <Button onClick={handleAdd} className="py-1.5 text-xs">Add</Button>
@@ -220,6 +225,62 @@ function NegativeConstraints({
         </div>
       )}
     </div>
+  )
+}
+
+function BoosterSection({ profile }: { profile: UserProfile }) {
+  const queryClient = useQueryClient()
+  const booster = profile.booster_status
+  const count = booster?.new_likes_count ?? 0
+  const eligible = booster?.eligible ?? false
+  const requested = booster?.requested ?? false
+
+  const boost = useMutation({
+    mutationFn: triggerBoost,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['profile'] })
+      toast('success', 'Profile boost scheduled for tonight!')
+    },
+    onError: () => toast('error', 'Failed to schedule boost'),
+  })
+
+  return (
+    <section className="rounded-xl border border-indigo-200 dark:border-indigo-900/50 bg-gradient-to-br from-indigo-50/60 to-purple-50/60 dark:from-indigo-950/30 dark:to-purple-950/30 p-5">
+      <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Customization Booster</h2>
+      <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+        Like papers you find useful. Every 5 new likes unlocks a boost — AI will analyze your reading patterns and craft a smarter personal profile.
+      </p>
+
+      {requested ? (
+        <button
+          disabled
+          className="w-full flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800 cursor-default"
+        >
+          <Zap size={15} />
+          Boost Scheduled for Tonight
+        </button>
+      ) : eligible ? (
+        <button
+          onClick={() => boost.mutate()}
+          disabled={boost.isPending}
+          className="w-full flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white shadow-sm shadow-indigo-200 dark:shadow-indigo-900/50 transition-all disabled:opacity-60 cursor-pointer"
+        >
+          {boost.isPending ? <Spinner className="size-4" /> : <Zap size={15} />}
+          Boost My Profile
+        </button>
+      ) : (
+        <button
+          disabled
+          className="w-full flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 cursor-default"
+        >
+          <Zap size={15} />
+          Boost My Profile
+          <span className="ml-auto rounded-full bg-gray-200 dark:bg-gray-700 px-2 py-0.5 text-xs font-bold text-gray-500 dark:text-gray-400">
+            {count} / 5
+          </span>
+        </button>
+      )}
+    </section>
   )
 }
 
@@ -310,6 +371,9 @@ export function ProfilePage() {
         <StatCard value={profile.activity_data.favorite_count} label="Bookmarked" />
         <StatCard value={profile.activity_data.days_active} label="Days Active" />
       </div>
+
+      {/* Customization Booster */}
+      <BoosterSection profile={profile} />
 
       {/* Research interests */}
       <InterestsSection profile={profile} />

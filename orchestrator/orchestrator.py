@@ -6,7 +6,10 @@ import asyncio
 import logging
 import os
 import re
+import shutil
 import sys
+import tempfile
+from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -14,8 +17,9 @@ from typing import Any, Dict, List, Optional
 import yaml
 from tqdm import tqdm
 
+from core.arxiv.downloader import download_pdf
 from core.models import DocSet
-from core.rerankers import GeminiReranker, GeminiRerankerPDF
+from core.rerankers import GeminiProfileExtractor, GeminiReranker, GeminiRerankerPDF
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -610,6 +614,96 @@ class PaperIgnitionOrchestrator:
                 await self.job_logger.complete_job_log(job_id=job_id, status="failed", details="No relevant papers found.")
                 continue
 
+    async def run_extract_user_profiles(self):
+        """Run Customization Booster: extract research profiles for users who requested it.
+
+        For each user with profile_boost_requested=True:
+        1. Fetch their recommendation history (liked + not-liked papers)
+        2. Download paper PDFs from arXiv to a temp directory
+        3. Run GeminiProfileExtractor to generate profile_json
+        4. Save profile and reset the boost flag via backend API
+        """
+        logging.info("Starting profile extraction for boost-requested users...")
+
+        usernames = self.backend_client.get_users_with_boost_requested()
+        if not usernames:
+            logging.info("No users with profile boost requested — skipping.")
+            return
+
+        model_id = self.orch_config.get("models", {}).get("profile_extraction", {}).get("model_id", "gemini-3-flash-preview")
+        extractor = GeminiProfileExtractor(model_name=model_id)
+
+        for username in usernames:
+            logging.info(f"Processing profile boost for user: {username}")
+            tmp_dir = Path(tempfile.mkdtemp(prefix="profile_boost_"))
+            try:
+                # Fetch all recommendation records for the user
+                papers = self.backend_client.get_user_papers(username)
+                if not papers:
+                    logging.warning(f"No recommendation history for {username}, skipping.")
+                    continue
+
+                # Group by day; keep only sessions with at least one liked paper
+                sessions: dict = defaultdict(list)
+                for p in papers:
+                    rec_date = (p.get("recommendation_date") or "")[:10]
+                    if rec_date:
+                        sessions[rec_date].append(p)
+
+                training_data = []
+                all_paper_ids: set = set()
+                for day, day_papers in sorted(sessions.items()):
+                    positives = [p for p in day_papers if p.get("blog_liked") is True]
+                    if not positives:
+                        continue
+                    negatives = [p for p in day_papers if p.get("blog_liked") is not True]
+                    candidates = []
+                    for p in positives:
+                        candidates.append({"paper_id": p["id"], "label": 1, "title": p.get("title", ""), "abstract": p.get("abstract", "")})
+                        all_paper_ids.add(p["id"])
+                    for p in negatives:
+                        candidates.append({"paper_id": p["id"], "label": 0, "title": p.get("title", ""), "abstract": p.get("abstract", "")})
+                        all_paper_ids.add(p["id"])
+                    training_data.append({"day": day, "candidates": candidates})
+
+                if not training_data:
+                    logging.warning(f"No sessions with liked papers for {username}, skipping.")
+                    continue
+
+                # Download PDFs from arXiv
+                pdf_paths_dict: dict = {}
+                for paper_id in all_paper_ids:
+                    try:
+                        arxiv_id = paper_id.split("v")[0] if "v" in paper_id else paper_id
+                        pdf_url = f"https://arxiv.org/pdf/{arxiv_id}"
+                        path = download_pdf(pdf_url, tmp_dir, f"{arxiv_id}.pdf")
+                        if path:
+                            pdf_paths_dict[paper_id] = str(path)
+                    except Exception as e:
+                        logging.warning(f"Failed to download PDF for {paper_id}: {e}")
+
+                if not pdf_paths_dict:
+                    logging.warning(f"No PDFs downloaded for {username}, skipping profile extraction.")
+                    continue
+
+                logging.info(f"Downloaded {len(pdf_paths_dict)}/{len(all_paper_ids)} PDFs for {username}")
+
+                profile, usage = extractor.extract_profile(training_data, pdf_paths_dict)
+                success = self.backend_client.complete_profile_boost(username, profile)
+                if success:
+                    logging.info(
+                        f"Profile boost done for {username} — tokens: {usage.get('total_tokens', 0)}"
+                    )
+                else:
+                    logging.error(f"Failed to save profile boost for {username}")
+
+            except Exception as e:
+                logging.error(f"Profile boost failed for {username}: {e}")
+            finally:
+                shutil.rmtree(tmp_dir, ignore_errors=True)
+
+        logging.info("Profile extraction stage complete.")
+
     async def run_per_user_blog_generation(self):
         """Run recommendation generation task for each user"""
         logging.info("Starting recommendation generation...")
@@ -636,12 +730,26 @@ class PaperIgnitionOrchestrator:
             "paper_fetch": False,
             "all_papers_blog_generation": False,
             "per_user_blog_generation": False,
+            "profile_extraction": False,
             "papers_count": 0,
             "stages_run": []
         }
 
         try:
             papers = []
+
+            # === Step 0: Extract User Profiles (Customization Booster) ===
+            if stages.get("extract_user_profiles", False):
+                logging.info("=== Step 0: Extracting user profiles (Customization Booster) ===")
+                results["stages_run"].append("extract_user_profiles")
+                await self.job_logger.update_job_log(overall_job_id, status="running", details={"step": "extract_user_profiles"})
+                try:
+                    await self.run_extract_user_profiles()
+                    results["profile_extraction"] = True
+                except Exception as e:
+                    logging.error(f"Profile extraction stage failed: {e}")
+            else:
+                logging.info("Skipping profile extraction stage (disabled in config)")
 
             # === Step 1: Fetch and Index Papers ===
             if stages.get("fetch_daily_papers", False):

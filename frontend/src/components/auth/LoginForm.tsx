@@ -105,7 +105,7 @@ export function LoginForm() {
       </div>
 
       <Button variant="outline" className="w-full" onClick={handleDemo} disabled={loading}>
-        Continue as Demo User
+        Try Demo
       </Button>
 
       <p className="text-center text-sm text-gray-500 dark:text-gray-400">

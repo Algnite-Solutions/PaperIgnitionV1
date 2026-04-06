@@ -2,7 +2,7 @@ import { ThumbsUp, ThumbsDown, Bookmark } from 'lucide-react'
 import { useAuthStore } from '../../stores/auth'
 import { useFeedback } from '../../hooks/useFeedback'
 import { useToggleFavorite } from '../../hooks/useToggleFavorite'
-import { useFavoriteIds } from '../../hooks/useFavoriteIds'
+import { useFavorites } from '../../hooks/useFavorites'
 import { toast } from '../ui/Toast'
 
 interface PaperActionsProps {
@@ -13,8 +13,8 @@ interface PaperActionsProps {
 
 export function PaperActions({ paperId, blogLiked, paper }: PaperActionsProps) {
   const isLoggedIn = useAuthStore((s) => s.isLoggedIn)
-  const { data: favoriteIds = [] } = useFavoriteIds()
-  const isFavorited = favoriteIds.includes(paperId)
+  const { data: favorites = [] } = useFavorites()
+  const isFavorited = favorites.some((f) => f.paper_id === paperId)
   const feedback = useFeedback()
   const toggle = useToggleFavorite()
 

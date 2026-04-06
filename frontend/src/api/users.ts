@@ -1,5 +1,11 @@
 import { api } from './client'
 
+export interface BoosterStatus {
+  new_likes_count: number
+  eligible: boolean
+  requested: boolean
+}
+
 export interface UserProfile {
   id: number
   username: string
@@ -16,6 +22,7 @@ export interface UserProfile {
     viewed_count: number
     days_active: number
   }
+  booster_status: BoosterStatus | null
 }
 
 export interface ProfileUpdatePayload {
@@ -32,6 +39,10 @@ export function getMe(): Promise<UserProfile> {
 
 export function updateProfile(data: ProfileUpdatePayload): Promise<UserProfile> {
   return api.put<UserProfile>('/api/users/me/profile', data)
+}
+
+export function triggerBoost(): Promise<UserProfile> {
+  return api.post<UserProfile>('/api/users/me/boost', {})
 }
 
 export interface ResearchDomain {
