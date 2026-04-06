@@ -9,7 +9,7 @@ from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from ..auth.schemas import UserOut, UserProfileUpdate
+from ..auth.schemas import BoosterStatus, UserOut, UserProfileUpdate
 from ..auth.utils import get_current_user
 from ..db_utils import get_db
 from ..models.users import FavoritePaper, ResearchDomain, User, UserPaperRecommendation
@@ -33,6 +33,24 @@ class RewriteInterestUpdate(BaseModel):
 
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+
+async def _compute_booster_status(user, db: AsyncSession) -> BoosterStatus:
+    """Compute the Customization Booster status for a user."""
+    query = select(func.count(UserPaperRecommendation.id)).where(
+        UserPaperRecommendation.username == user.username,
+        UserPaperRecommendation.blog_liked.is_(True),
+    )
+    if user.profile_last_extracted_at is not None:
+        query = query.where(
+            UserPaperRecommendation.recommendation_date > user.profile_last_extracted_at
+        )
+    new_likes_count = await db.scalar(query) or 0
+    return BoosterStatus(
+        new_likes_count=new_likes_count,
+        eligible=new_likes_count >= 5,
+        requested=bool(user.profile_boost_requested),
+    )
 
 
 def save_recommendations(username, papers, backend_api_url):
@@ -74,7 +92,7 @@ async def get_current_user_info(current_user: User = Depends(get_current_user), 
             research_domain_ids.append(domain.id)
 
     favorite_count = await db.scalar(
-        select(func.count(FavoritePaper.id)).where(FavoritePaper.user_id == current_user.id)
+        select(func.count(FavoritePaper.paper_id)).where(FavoritePaper.user_id == current_user.id)
     )
 
     viewed_count = await db.scalar(
@@ -88,6 +106,8 @@ async def get_current_user_info(current_user: User = Depends(get_current_user), 
     if current_user.created_at:
         now = datetime.now(timezone.utc)
         days_active = (now - current_user.created_at).days
+
+    booster_status = await _compute_booster_status(current_user, db)
 
     return {
         "id": current_user.id,
@@ -104,7 +124,8 @@ async def get_current_user_info(current_user: User = Depends(get_current_user), 
             "favorite_count": favorite_count or 0,
             "viewed_count": viewed_count or 0,
             "days_active": days_active
-        }
+        },
+        "booster_status": booster_status,
     }
 
 
@@ -236,7 +257,7 @@ async def update_user_profile(
 
     research_domain_ids = [d.id for d in current_user.research_domains] if current_user.research_domains else []
     favorite_count = await db.scalar(
-        select(func.count(FavoritePaper.id)).where(FavoritePaper.user_id == current_user.id)
+        select(func.count(FavoritePaper.paper_id)).where(FavoritePaper.user_id == current_user.id)
     )
     viewed_count = await db.scalar(
         select(func.count(UserPaperRecommendation.id)).where(
@@ -248,6 +269,8 @@ async def update_user_profile(
     if current_user.created_at:
         now = datetime.now(timezone.utc)
         days_active = (now - current_user.created_at).days
+
+    booster_status = await _compute_booster_status(current_user, db)
 
     return {
         "id": current_user.id,
@@ -265,6 +288,7 @@ async def update_user_profile(
             "viewed_count": viewed_count or 0,
             "days_active": days_active,
         },
+        "booster_status": booster_status,
     }
 
 
@@ -340,4 +364,89 @@ async def get_user_by_email(
         "research_domain_ids": research_domain_ids
     }
 
+
+# ── Customization Booster Endpoints ───────────────────────────────────────────
+
+@router.post("/me/boost", response_model=UserOut)
+async def trigger_profile_boost(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Set profile_boost_requested=True for the current user (JWT auth)."""
+    current_user.profile_boost_requested = True
+    db.add(current_user)
+    await db.commit()
+    await db.refresh(current_user)
+
+    booster_status = await _compute_booster_status(current_user, db)
+    research_domain_ids = [d.id for d in current_user.research_domains] if current_user.research_domains else []
+    favorite_count = await db.scalar(
+        select(func.count(FavoritePaper.paper_id)).where(FavoritePaper.user_id == current_user.id)
+    )
+    viewed_count = await db.scalar(
+        select(func.count(UserPaperRecommendation.id)).where(
+            UserPaperRecommendation.username == current_user.username,
+            UserPaperRecommendation.viewed.is_(True)
+        )
+    )
+    days_active = 0
+    if current_user.created_at:
+        now = datetime.now(timezone.utc)
+        days_active = (now - current_user.created_at).days
+
+    return {
+        "id": current_user.id,
+        "username": current_user.username,
+        "email": current_user.email,
+        "is_active": current_user.is_active,
+        "is_verified": current_user.is_verified,
+        "research_interests_text": current_user.research_interests_text,
+        "rewrite_interest": current_user.rewrite_interest,
+        "profile_json": current_user.profile_json,
+        "blog_language": current_user.blog_language,
+        "research_domain_ids": research_domain_ids,
+        "activity_data": {
+            "favorite_count": favorite_count or 0,
+            "viewed_count": viewed_count or 0,
+            "days_active": days_active,
+        },
+        "booster_status": booster_status,
+    }
+
+
+@router.get("/boost-requested")
+async def get_users_with_boost_requested(db: AsyncSession = Depends(get_db)):
+    """Return list of usernames where profile_boost_requested=True (orchestrator-facing, no auth)."""
+    result = await db.execute(
+        select(User.username).where(User.profile_boost_requested.is_(True))
+    )
+    usernames = result.scalars().all()
+    return {"usernames": list(usernames)}
+
+
+class BoostCompleteRequest(BaseModel):
+    profile_json: dict
+
+
+@router.post("/boost-complete/{username}")
+async def complete_profile_boost(
+    username: str,
+    body: BoostCompleteRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Orchestrator calls this after profile extraction to save profile and reset the boost flag."""
+    result = await db.execute(select(User).where(User.username == username))
+    user = result.scalars().first()
+    if not user:
+        raise HTTPException(status_code=404, detail=f"User {username} not found")
+
+    merged = dict(user.profile_json or {})
+    merged.update(body.profile_json)
+    user.profile_json = merged
+    user.profile_boost_requested = False
+    user.profile_last_extracted_at = datetime.now(timezone.utc)
+    db.add(user)
+    await db.commit()
+    logger.info(f"Profile boost completed for user {username}")
+    return {"status": "ok", "username": username}
 

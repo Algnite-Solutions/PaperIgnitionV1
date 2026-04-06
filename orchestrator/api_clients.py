@@ -479,3 +479,37 @@ class BackendAPIClient(BaseAPIClient):
                 continue
 
         return docsets
+
+
+    def get_users_with_boost_requested(self) -> List[str]:
+        """Get list of usernames where profile_boost_requested=True (orchestrator-facing).
+
+        Returns:
+            List of usernames that have requested a profile boost.
+        """
+        try:
+            result = self.get("/api/users/boost-requested")
+            usernames = result.get("usernames", [])
+            self.logger.info(f"Found {len(usernames)} users with boost requested")
+            return usernames
+        except Exception as e:
+            self.logger.error(f"Failed to fetch boost-requested users: {e}")
+            return []
+
+    def complete_profile_boost(self, username: str, profile_json: Dict[str, Any]) -> bool:
+        """Save extracted profile and reset the boost flag for a user.
+
+        Args:
+            username: User's username/email
+            profile_json: Extracted profile dict (persona_definition, negative_constraints, ranking_heuristics)
+
+        Returns:
+            True if successful, False otherwise.
+        """
+        try:
+            self.post(f"/api/users/boost-complete/{username}", json_data={"profile_json": profile_json})
+            self.logger.info(f"Profile boost completed for {username}")
+            return True
+        except Exception as e:
+            self.logger.error(f"Failed to complete profile boost for {username}: {e}")
+            return False

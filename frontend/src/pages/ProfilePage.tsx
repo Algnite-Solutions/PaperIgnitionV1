@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Save, Globe, Edit3, X } from 'lucide-react'
-import { getMe, updateProfile, type UserProfile } from '../api/users'
+import { Save, Globe, Edit3, X, Zap } from 'lucide-react'
+import { getMe, updateProfile, triggerBoost, type UserProfile } from '../api/users'
 import { Button } from '../components/ui/Button'
 import { Spinner } from '../components/ui/Spinner'
 import { toast } from '../components/ui/Toast'
@@ -228,6 +228,62 @@ function EditableChipList({
   )
 }
 
+function BoosterSection({ profile }: { profile: UserProfile }) {
+  const queryClient = useQueryClient()
+  const booster = profile.booster_status
+  const count = booster?.new_likes_count ?? 0
+  const eligible = booster?.eligible ?? false
+  const requested = booster?.requested ?? false
+
+  const boost = useMutation({
+    mutationFn: triggerBoost,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['profile'] })
+      toast('success', 'Profile boost scheduled for tonight!')
+    },
+    onError: () => toast('error', 'Failed to schedule boost'),
+  })
+
+  return (
+    <section className="rounded-xl border border-indigo-200 dark:border-indigo-900/50 bg-gradient-to-br from-indigo-50/60 to-purple-50/60 dark:from-indigo-950/30 dark:to-purple-950/30 p-5">
+      <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Customization Booster</h2>
+      <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+        Like papers you find useful. Every 5 new likes unlocks a boost — AI will analyze your reading patterns and craft a smarter personal profile.
+      </p>
+
+      {requested ? (
+        <button
+          disabled
+          className="w-full flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800 cursor-default"
+        >
+          <Zap size={15} />
+          Boost Scheduled for Tonight
+        </button>
+      ) : eligible ? (
+        <button
+          onClick={() => boost.mutate()}
+          disabled={boost.isPending}
+          className="w-full flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white shadow-sm shadow-indigo-200 dark:shadow-indigo-900/50 transition-all disabled:opacity-60 cursor-pointer"
+        >
+          {boost.isPending ? <Spinner className="size-4" /> : <Zap size={15} />}
+          Boost My Profile
+        </button>
+      ) : (
+        <button
+          disabled
+          className="w-full flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 cursor-default"
+        >
+          <Zap size={15} />
+          Boost My Profile
+          <span className="ml-auto rounded-full bg-gray-200 dark:bg-gray-700 px-2 py-0.5 text-xs font-bold text-gray-500 dark:text-gray-400">
+            {count} / 5
+          </span>
+        </button>
+      )}
+    </section>
+  )
+}
+
 function BlogLanguageSection({ profile }: { profile: UserProfile }) {
   const queryClient = useQueryClient()
   const current = profile.blog_language || 'zh'
@@ -315,6 +371,9 @@ export function ProfilePage() {
         <StatCard value={profile.activity_data.favorite_count} label="Bookmarked" />
         <StatCard value={profile.activity_data.days_active} label="Days Active" />
       </div>
+
+      {/* Customization Booster */}
+      <BoosterSection profile={profile} />
 
       {/* Research interests */}
       <InterestsSection profile={profile} />

@@ -50,6 +50,8 @@ class User(Base):
     research_interests_text = Column(Text, nullable=True)  # 用户主观研究兴趣描述文本
     rewrite_interest = Column(Text, nullable=True)  # LLM重写后的兴趣描述
     blog_language = Column(String(10), default="zh")  # Blog language preference: "zh" or "en"
+    profile_boost_requested = Column(Boolean, default=False)  # User clicked "Boost My Profile"
+    profile_last_extracted_at = Column(DateTime(timezone=True), nullable=True)  # Last profile extraction timestamp
     research_domains = relationship("ResearchDomain", secondary=user_domain_association, back_populates="users")
     favorite_papers = relationship("FavoritePaper", back_populates="user")
     recommended_papers = relationship("UserPaperRecommendation", back_populates="user")

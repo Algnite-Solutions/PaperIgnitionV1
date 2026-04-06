@@ -34,6 +34,12 @@ class ActivityData(BaseModel):
     viewed_count: int = 0
     days_active: int = 0
 
+class BoosterStatus(BaseModel):
+    """Customization Booster status"""
+    new_likes_count: int = 0
+    eligible: bool = False      # new_likes_count >= 5
+    requested: bool = False     # user has clicked the booster button
+
 class UserOut(UserBase):
     id: int
     is_active: Optional[bool] = True
@@ -46,6 +52,7 @@ class UserOut(UserBase):
     email: EmailStr
     research_domain_ids: Optional[List[int]] = None
     activity_data: Optional[ActivityData] = None
+    booster_status: Optional[BoosterStatus] = None
 
     class Config:
         from_attributes = True

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import { LogIn } from 'lucide-react'
 import { useRecommendations } from '../hooks/useRecommendations'
 import { useAuthStore } from '../stores/auth'
@@ -21,6 +21,21 @@ function deduplicatePapers(papers: RecommendedPaper[]): RecommendedPaper[] {
 
 export function FeedPage() {
   const isLoggedIn = useAuthStore((s) => s.isLoggedIn)
+  const { demoLogin } = useAuthStore()
+  const navigate = useNavigate()
+  const [demoLoading, setDemoLoading] = useState(false)
+
+  async function handleDemo() {
+    setDemoLoading(true)
+    try {
+      await demoLogin()
+      navigate('/')
+    } catch {
+      // ignore
+    } finally {
+      setDemoLoading(false)
+    }
+  }
   const { data: rawPapers, isLoading, error } = useRecommendations()
   const [displayCount, setDisplayCount] = useState(PAPERS_PER_PAGE)
   const sentinelRef = useRef<HTMLDivElement>(null)
@@ -59,13 +74,22 @@ export function FeedPage() {
               Sign in to see papers tailored to your research interests
             </p>
           </div>
-          <Link
-            to="/login"
-            className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark transition-colors"
-          >
-            <LogIn size={14} />
-            Sign In
-          </Link>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleDemo}
+              disabled={demoLoading}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-blue-300 dark:border-blue-700 px-4 py-2 text-sm font-medium text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors disabled:opacity-60"
+            >
+              Try Demo
+            </button>
+            <Link
+              to="/login"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark transition-colors"
+            >
+              <LogIn size={14} />
+              Sign In
+            </Link>
+          </div>
         </div>
       )}
 
