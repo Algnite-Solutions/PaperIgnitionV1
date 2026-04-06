@@ -18,7 +18,7 @@ class TestFavorites:
             headers=auth_headers,
         )
         assert resp.status_code == 201
-        assert "favorite_id" in resp.json()
+        assert resp.json().get("message") == "Paper added to favorites"
 
     async def test_remove_favorite(self, client, test_user, auth_headers):
         # Add first
