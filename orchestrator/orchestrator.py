@@ -632,7 +632,7 @@ class PaperIgnitionOrchestrator:
 
         model_id = self.orch_config.get("models", {}).get("profile_extraction", {}).get("model_id", "gemini-3-flash-preview")
         extractor = GeminiProfileExtractor(model_name=model_id)
-        
+
         for username in usernames:
             logging.info(f"Processing profile boost for user: {username}")
             tmp_dir = Path(tempfile.mkdtemp(prefix="profile_boost_"))
@@ -649,7 +649,7 @@ class PaperIgnitionOrchestrator:
                     rec_date = (p.get("recommendation_date") or "")[:10]
                     if rec_date:
                         sessions[rec_date].append(p)
-                
+
                 training_data = []
                 all_paper_ids: set = set()
                 for day, day_papers in sorted(sessions.items()):
@@ -665,7 +665,7 @@ class PaperIgnitionOrchestrator:
                         candidates.append({"paper_id": p["id"], "label": 0, "title": p.get("title", ""), "abstract": p.get("abstract", "")})
                         all_paper_ids.add(p["id"])
                     training_data.append({"day": day, "candidates": candidates})
-                
+
                 if not training_data:
                     logging.warning(f"No sessions with liked papers for {username}, skipping.")
                     continue
