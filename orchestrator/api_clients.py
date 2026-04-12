@@ -194,19 +194,20 @@ class BackendAPIClient(BaseAPIClient):
             self.logger.warning(f"Failed to get search context for {email}: {e}")
             return None, None
 
-    def get_user_papers(self, username: str) -> List[Dict[str, Any]]:
+    def get_user_papers(self, username: str, limit: int = 50) -> List[Dict[str, Any]]:
         """
         Get papers recommended to a user
 
         Args:
             username: User's username/email
+            limit: Maximum number of papers to return (default 50, use higher for profile extraction)
 
         Returns:
             List of paper dictionaries
         """
         try:
             self.logger.debug(f"Fetching papers for user: {username}")
-            papers = self.get(f"/api/digests/recommendations/{username}")
+            papers = self.get(f"/api/digests/recommendations/{username}", params={"limit": limit})
             self.logger.info(f"User {username} has {len(papers)} papers")
             return papers
         except APIResponseError as e:
@@ -512,4 +513,53 @@ class BackendAPIClient(BaseAPIClient):
             return True
         except Exception as e:
             self.logger.error(f"Failed to complete profile boost for {username}: {e}")
+            return False
+
+    def get_profile_pool(self, username: str) -> List[Dict[str, Any]]:
+        """Fetch existing profile pool entries for a user.
+
+        Args:
+            username: User's username/email
+
+        Returns:
+            List of pool entry dicts with id, profile_json, metrics, etc.
+        """
+        try:
+            entries = self.get(f"/api/users/profile-pool/{username}")
+            self.logger.info(f"Loaded {len(entries)} profile pool entries for {username}")
+            return entries
+        except Exception as e:
+            self.logger.error(f"Failed to fetch profile pool for {username}: {e}")
+            return []
+
+    def save_profile_pool(
+        self,
+        username: str,
+        entries: List[Dict[str, Any]],
+        active_entry_index: int,
+    ) -> bool:
+        """Save the full profile pool and set the active profile.
+
+        Args:
+            username: User's username/email
+            entries: List of pool entry dicts (profile_json, generation, metrics, etc.)
+            active_entry_index: Index into entries list that should be marked active
+
+        Returns:
+            True if successful, False otherwise.
+        """
+        try:
+            self.post(
+                f"/api/users/profile-pool/{username}",
+                json_data={
+                    "entries": entries,
+                    "active_entry_index": active_entry_index,
+                },
+            )
+            self.logger.info(
+                f"Saved profile pool for {username}: {len(entries)} entries, active={active_entry_index}"
+            )
+            return True
+        except Exception as e:
+            self.logger.error(f"Failed to save profile pool for {username}: {e}")
             return False

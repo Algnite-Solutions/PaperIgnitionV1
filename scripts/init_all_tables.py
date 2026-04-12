@@ -24,6 +24,7 @@ sys.path.insert(0, str(project_root))
 
 from backend.app.db_utils import Base as UserBase
 from backend.app.models.users import (
+    ProfilePoolEntry,
     ResearchDomain,
 )
 from backend.config_utils import load_config
@@ -130,6 +131,11 @@ def init_user_database(config_path: str = None, drop_existing: bool = False):
             conn.execute(text("""
                 CREATE INDEX IF NOT EXISTS ix_users_password_reset_token
                 ON users(password_reset_token)
+            """))
+
+            # Migration: profile pool optimization columns
+            conn.execute(text("""
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_pool_version INTEGER DEFAULT 0
             """))
 
             conn.commit()

@@ -4,6 +4,8 @@ export interface BoosterStatus {
   new_likes_count: number
   eligible: boolean
   requested: boolean
+  pool_size: number
+  best_f1: number | null
 }
 
 export interface UserProfile {

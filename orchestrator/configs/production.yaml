@@ -38,6 +38,15 @@ models:
   profile_extraction:
     model_id: gemini-3-flash-preview
 
+profile_pool:
+  enabled: true
+  pool_size: 5
+  max_mutations_per_cycle: 2
+  max_val_days: 7
+  max_papers: 50
+  min_days_for_pool: 10
+  fallback_to_single_profile: true
+
 stages:
   extract_user_profiles: true
   fetch_daily_papers: true

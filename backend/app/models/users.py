@@ -52,6 +52,7 @@ class User(Base):
     blog_language = Column(String(10), default="zh")  # Blog language preference: "zh" or "en"
     profile_boost_requested = Column(Boolean, default=False)  # User clicked "Boost My Profile"
     profile_last_extracted_at = Column(DateTime(timezone=True), nullable=True)  # Last profile extraction timestamp
+    profile_pool_version = Column(Integer, default=0)  # Incremented each time the profile pool is optimized
     research_domains = relationship("ResearchDomain", secondary=user_domain_association, back_populates="users")
     favorite_papers = relationship("FavoritePaper", back_populates="user")
     recommended_papers = relationship("UserPaperRecommendation", back_populates="user")
@@ -164,3 +165,32 @@ class JobLog(Base):
     # Metadata
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
+class ProfilePoolEntry(Base):
+    """Profile pool candidate for GEPA-style profile optimization."""
+    __tablename__ = "profile_pool"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), ForeignKey("users.username"), nullable=False, index=True)
+    profile_json = Column(JSONB, nullable=False)
+
+    # Evaluation metrics (computed on held-out validation data)
+    precision_val = Column(Float, nullable=True)
+    recall_val = Column(Float, nullable=True)
+    f1_val = Column(Float, nullable=True)
+    val_days_count = Column(Integer, default=0)
+
+    # Genealogy
+    generation = Column(Integer, default=0)  # 0=initial extraction, 1+=refinement
+    parent_id = Column(Integer, ForeignKey("profile_pool.id"), nullable=True)
+    mutation_note = Column(Text, nullable=True)
+
+    # Lifecycle
+    is_active = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    evaluated_at = Column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        Index("idx_profile_pool_active", "username", postgresql_where=(is_active is True)),
+    )
