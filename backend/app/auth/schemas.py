@@ -1,6 +1,6 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 class UserBase(BaseModel):
@@ -55,6 +55,9 @@ class UserOut(UserBase):
     research_domain_ids: Optional[List[int]] = None
     activity_data: Optional[ActivityData] = None
     booster_status: Optional[BoosterStatus] = None
+    profile_last_extracted_at: Optional[str] = None
+    profile_pool_version: Optional[int] = None
+    profile_boost_requested: Optional[bool] = None
 
     class Config:
         from_attributes = True
@@ -80,7 +83,7 @@ class ProfilePoolEntryIn(BaseModel):
     """Input schema for saving a pool entry (from orchestrator)."""
     profile_json: Dict[str, Any]
     generation: int = 0
-    parent_id: Optional[int] = None
+    parent_id: Optional[Union[str, int]] = None
     mutation_note: Optional[str] = None
     is_active: bool = False
     precision_val: Optional[float] = None
@@ -88,6 +91,13 @@ class ProfilePoolEntryIn(BaseModel):
     f1_val: Optional[float] = None
     val_days_count: int = 0
     breakdown_str: Optional[str] = None
+
+    @field_validator("parent_id", mode="before")
+    @classmethod
+    def coerce_parent_id(cls, v):
+        if v is not None:
+            return str(v)
+        return None
 
 
 class ProfilePoolEntryOut(BaseModel):
@@ -99,7 +109,7 @@ class ProfilePoolEntryOut(BaseModel):
     f1_val: Optional[float] = None
     val_days_count: int = 0
     generation: int = 0
-    parent_id: Optional[int] = None
+    parent_id: Optional[str] = None
     mutation_note: Optional[str] = None
     breakdown_str: Optional[str] = None
     is_active: bool = False

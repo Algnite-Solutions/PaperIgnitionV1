@@ -183,7 +183,7 @@ class ProfilePoolEntry(Base):
 
     # Genealogy
     generation = Column(Integer, default=0)  # 0=initial extraction, 1+=refinement
-    parent_id = Column(Integer, ForeignKey("profile_pool.id"), nullable=True)
+    parent_id = Column(String(50), nullable=True)  # logical parent ID (e.g. "gen0_abc123")
     mutation_note = Column(Text, nullable=True)
     breakdown_str = Column(Text, nullable=True)  # TP/FP/FN feedback from evaluator
 

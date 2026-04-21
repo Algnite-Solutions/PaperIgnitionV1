@@ -391,6 +391,9 @@ async def get_user_by_email(
         "rewrite_interest": user.rewrite_interest,
         "profile_json": user.profile_json,
         "blog_language": user.blog_language,
+        "profile_last_extracted_at": user.profile_last_extracted_at.isoformat() if user.profile_last_extracted_at else None,
+        "profile_pool_version": user.profile_pool_version,
+        "profile_boost_requested": user.profile_boost_requested,
         "research_domain_ids": research_domain_ids
     }
 

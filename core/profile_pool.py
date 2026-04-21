@@ -69,116 +69,87 @@ class PoolEvaluator:
     def __init__(self, reranker: GeminiRerankerPDF):
         self.reranker = reranker
 
-    def evaluate(
+    def evaluate_single_day(
         self,
         profile: dict,
-        val_days: list[dict],
+        day_item: dict,
         pdf_paths_dict: dict[str, str],
-        max_val_days: int = 7,
-        decay: float | None = None,
-    ) -> dict:
+    ) -> dict | None:
+        """Evaluate a single profile on a single day/bin.
+
+        Returns per-day result dict or None if the day should be skipped.
         """
-        Evaluate a profile on validation days.
+        import time
 
-        Args:
-            profile: {persona_definition, negative_constraints, ranking_heuristics}
-            val_days: [{day, candidates: [{paper_id, label, title, abstract}]}]
-            pdf_paths_dict: paper_id → local PDF path
-            max_val_days: max validation days to evaluate (cost control)
-            decay: exponential decay weight for recent sessions (e.g. 0.85).
-                   None = equal weighting.
+        day_str = day_item["day"]
+        candidates = day_item["candidates"]
+        actual_positives = {c["paper_id"] for c in candidates if c.get("label") == 1}
 
-        Returns:
-            {precision, recall, f1, val_days_count, per_day_breakdown,
-             breakdown_str, tp_paper_ids, fp_paper_ids, fn_paper_ids}
-        """
-        sampled_days = val_days[:max_val_days]
-        results = []
+        if not actual_positives:
+            return None
 
-        logger.info(f"⚡ Starting evaluation of {len(sampled_days)} days in parallel...")
+        day_pdf_paths = {
+            c["paper_id"]: pdf_paths_dict[c["paper_id"]]
+            for c in candidates
+            if c["paper_id"] in pdf_paths_dict
+        }
 
-        def _evaluate_day(day_item):
-            day_str = day_item["day"]
-            candidates = day_item["candidates"]
-            actual_positives = {c["paper_id"] for c in candidates if c.get("label") == 1}
+        if not day_pdf_paths:
+            logger.warning(f"⚠ Day {day_str}: no PDFs available, skipping")
+            return None
 
-            if not actual_positives:
-                return None
+        logger.info(f"→ {day_str}: evaluating {len(day_pdf_paths)} papers...")
 
-            # Build PDF paths for this day's candidates
-            day_pdf_paths = {
-                c["paper_id"]: pdf_paths_dict[c["paper_id"]]
-                for c in candidates
-                if c["paper_id"] in pdf_paths_dict
-            }
-
-            if not day_pdf_paths:
-                logger.warning(f"⚠ Day {day_str}: no PDFs available, skipping")
-                return None
-
-            logger.info(f"→ {day_str}: evaluating {len(day_pdf_paths)} papers...")
-
-            import time
-
-            max_retries = 3
-            backoff = 5
-            for attempt in range(max_retries):
-                try:
-                    ranked, _ = self.reranker.rerank(
-                        query="",
-                        pdf_paths_dict=day_pdf_paths,
-                        retrieve_ids=list(day_pdf_paths.keys()),
-                        top_k=len(day_pdf_paths),
-                        user_profile=profile,
-                    )
-                    predicted = set(ranked) if ranked else set()
-                    logger.info(f"✓ {day_str}: predicted {len(predicted)} pos out of {len(day_pdf_paths)}")
-                    break
-                except Exception as e:
-                    error_str = str(e).lower()
-                    is_retryable = any(err in error_str for err in ["503", "unavailable", "429"])
-                    if is_retryable and attempt < max_retries - 1:
-                        wait = backoff ** (attempt + 1)
-                        logger.warning(f"⚠ {day_str}: retryable error, attempt {attempt+1}/{max_retries}, retrying in {wait}s: {e}")
-                        time.sleep(wait)
-                    else:
-                        logger.error(f"✖ {day_str}: evaluation failed after {max_retries} retries: {e}")
-                        predicted = set()
-                        break
-
-            # Compute TP/FP/FN per day
-            tp_ids = predicted & actual_positives
-            fp_ids = predicted - actual_positives
-            fn_ids = actual_positives - predicted
-
-            # Build lookup for title/abstract
-            cand_lookup = {c["paper_id"]: c for c in candidates}
-
-            metrics = calculate_f1(predicted, actual_positives)
-            return {
-                "day": day_str,
-                "precision": metrics["precision"],
-                "recall": metrics["recall"],
-                "f1": metrics["f1"],
-                "num_candidates": len(candidates),
-                "num_actual": len(actual_positives),
-                "num_predicted": len(predicted),
-                "tp_ids": tp_ids,
-                "fp_ids": fp_ids,
-                "fn_ids": fn_ids,
-                "candidates": candidates,
-                "cand_lookup": cand_lookup,
-            }
-
-        for day_item in sampled_days:
+        max_retries = 3
+        backoff = 5
+        for attempt in range(max_retries):
             try:
-                res = _evaluate_day(day_item)
-                if res is not None:
-                    results.append(res)
-            except Exception as exc:
-                logger.error(f"Day {day_item['day']} generated an exception: {exc}")
+                ranked, _ = self.reranker.rerank(
+                    query="",
+                    pdf_paths_dict=day_pdf_paths,
+                    retrieve_ids=list(day_pdf_paths.keys()),
+                    top_k=len(day_pdf_paths),
+                    user_profile=profile,
+                )
+                predicted = set(ranked) if ranked else set()
+                logger.info(f"✓ {day_str}: predicted {len(predicted)} pos out of {len(day_pdf_paths)}")
+                break
+            except Exception as e:
+                error_str = str(e).lower()
+                is_retryable = any(err in error_str for err in ["503", "unavailable", "429"])
+                if is_retryable and attempt < max_retries - 1:
+                    wait = backoff ** (attempt + 1)
+                    logger.warning(f"⚠ {day_str}: retryable error, attempt {attempt+1}/{max_retries}, retrying in {wait}s: {e}")
+                    time.sleep(wait)
+                else:
+                    logger.error(f"✖ {day_str}: evaluation failed after {max_retries} retries: {e}")
+                    predicted = set()
+                    break
 
-        # Sort results by day to maintain chronological order
+        tp_ids = predicted & actual_positives
+        fp_ids = predicted - actual_positives
+        fn_ids = actual_positives - predicted
+
+        cand_lookup = {c["paper_id"]: c for c in candidates}
+
+        metrics = calculate_f1(predicted, actual_positives)
+        return {
+            "day": day_str,
+            "precision": metrics["precision"],
+            "recall": metrics["recall"],
+            "f1": metrics["f1"],
+            "num_candidates": len(candidates),
+            "num_actual": len(actual_positives),
+            "num_predicted": len(predicted),
+            "tp_ids": tp_ids,
+            "fp_ids": fp_ids,
+            "fn_ids": fn_ids,
+            "candidates": candidates,
+            "cand_lookup": cand_lookup,
+        }
+
+    def aggregate_results(self, results: list[dict], decay: float | None = None) -> dict:
+        """Aggregate per-day evaluation results into final metrics."""
         results.sort(key=lambda x: x["day"])
 
         if not results:
@@ -194,7 +165,6 @@ class PoolEvaluator:
                 "fn_paper_ids": set(),
             }
 
-        # Compute weighted averages
         n = len(results)
         if decay is not None and n > 1:
             weights = [decay ** (n - 1 - i) for i in range(n)]
@@ -207,7 +177,6 @@ class PoolEvaluator:
             avg_recall = sum(r["recall"] for r in results) / n
             avg_f1 = sum(r["f1"] for r in results) / n
 
-        # Aggregate TP/FP/FN across all days
         all_tp = set()
         all_fp = set()
         all_fn = set()
@@ -216,7 +185,6 @@ class PoolEvaluator:
             all_fp |= r["fp_ids"]
             all_fn |= r["fn_ids"]
 
-        # Build rich breakdown string for refinement prompt
         breakdown_str = self._build_breakdown_str(results)
 
         return {
@@ -230,6 +198,29 @@ class PoolEvaluator:
             "fp_paper_ids": all_fp,
             "fn_paper_ids": all_fn,
         }
+
+    def evaluate(
+        self,
+        profile: dict,
+        val_days: list[dict],
+        pdf_paths_dict: dict[str, str],
+        max_val_days: int = 7,
+        decay: float | None = None,
+    ) -> dict:
+        """Evaluate a profile on validation days (single-candidate convenience wrapper). max_val_days meaning bins"""
+        sampled_days = val_days[:max_val_days]
+        logger.info(f"⚡ Starting evaluation of {len(sampled_days)} days...")
+
+        results = []
+        for day_item in sampled_days:
+            try:
+                res = self.evaluate_single_day(profile, day_item, pdf_paths_dict)
+                if res is not None:
+                    results.append(res)
+            except Exception as exc:
+                logger.error(f"Day {day_item['day']} generated an exception: {exc}")
+
+        return self.aggregate_results(results, decay)
 
     def _build_breakdown_str(self, results: list[dict]) -> str:
         """Build rich TP/FP/FN breakdown string for the refinement prompt."""
@@ -412,6 +403,31 @@ class ProfilePoolOptimizer:
             return {"pool": [], "active_profile": None, "active_id": None}
 
         is_first_boost = not existing_pool
+
+        # Pre-evaluate existing pool if entries lack breakdown feedback
+        if existing_pool and not is_first_boost:
+            needs_preeval = any(e.get("breakdown_str") is None for e in existing_pool)
+            if needs_preeval and val_bins:
+                logger.info("Pre-evaluating %d existing candidates (no breakdown_str)", len(existing_pool))
+                pre_candidates = []
+                for e in existing_pool:
+                    pre_candidates.append({
+                        "id": e.get("id"),
+                        "profile_json": e["profile_json"],
+                        "generation": e.get("generation", 0),
+                        "is_active": False,
+                        "precision_val": None, "recall_val": None, "f1_val": None,
+                        "val_days_count": 0,
+                        "parent_id": e.get("parent_id"),
+                        "mutation_note": e.get("mutation_note"),
+                    })
+                pre_candidates = self._evaluate_all(pre_candidates, val_bins, pdf_paths_dict, len(val_bins))
+                # Copy breakdown_str and metrics back to existing_pool
+                for orig, evaluated in zip(existing_pool, pre_candidates):
+                    orig["breakdown_str"] = evaluated.get("breakdown_str")
+                    orig["f1_val"] = evaluated.get("f1_val")
+                    orig["precision_val"] = evaluated.get("precision_val")
+                    orig["recall_val"] = evaluated.get("recall_val")
 
         if is_first_boost:
             logger.info("First boost — initializing pool with 3 candidates")
@@ -663,7 +679,7 @@ class ProfilePoolOptimizer:
                     "id": f"gen{parent.get('generation', 0) + 1}_{uuid.uuid4().hex[:8]}",
                     "profile_json": mutated_profile,
                     "generation": parent.get("generation", 0) + 1,
-                    "parent_id": parent.get("id"),
+                    "parent_id": str(parent.get("id")) if parent.get("id") is not None else None,
                     "mutation_note": f"Reflective mutation from gen {parent.get('generation', 0)} (parent: {parent.get('id')})",
                     "is_active": False,
                     "precision_val": None,
@@ -724,21 +740,31 @@ class ProfilePoolOptimizer:
             "full_prompt": prompt,
         })
 
-        try:
-            response = self.client.models.generate_content(
-                model=self.model_name,
-                contents=prompt,
-            )
-            result = self.extractor._parse_json_response(response.text)
-            if self.debug:
-                print(f"  [DEBUG] MUTATION RESPONSE ({len(response.text)} chars):")
-                print(response.text[:3000])
-                print()
-            logger.info("Mutation produced new profile (gen +1)")
-            return result
-        except Exception as e:
-            logger.error("Profile mutation failed: %s", e)
-            return None
+        max_retries = 3
+        for attempt in range(1, max_retries + 1):
+            try:
+                response = self.client.models.generate_content(
+                    model=self.model_name,
+                    contents=prompt,
+                )
+                result = self.extractor._parse_json_response(response.text)
+                if self.debug:
+                    print(f"  [DEBUG] MUTATION RESPONSE ({len(response.text)} chars):")
+                    print(response.text[:3000])
+                    print()
+                logger.info("Mutation produced new profile (gen +1)")
+                return result
+            except Exception as e:
+                err_str = str(e)
+                is_transient = any(code in err_str for code in ("503", "429", "UNAVAILABLE", "RESOURCE_EXHAUSTED"))
+                if is_transient and attempt < max_retries:
+                    wait = attempt * 10
+                    logger.warning("Mutation attempt %d/%d failed (%s), retrying in %ds...", attempt, max_retries, err_str[:80], wait)
+                    import time
+                    time.sleep(wait)
+                    continue
+                logger.error("Profile mutation failed: %s", e)
+                return None
 
     def _build_training_summary(
         self,
@@ -772,14 +798,19 @@ class ProfilePoolOptimizer:
 
     def _evaluate_all(
         self,
-        candidates: list[dict],
+        candidates: list[str],
         val_sessions: list[dict],
         pdf_paths_dict: dict[str, str],
         max_val_days: int,
     ) -> list[dict]:
-        """Evaluate all candidates on validation data."""
+        """Evaluate all candidates on validation data.
+
+        Evaluates bin-by-bin across all candidates (instead of candidate-by-candidate)
+        so consecutive API calls share the same paper content, benefiting from KV cache.
+        """
         # Skip candidates with default/fallback profiles (extraction failures)
         default_persona = self.extractor._default_profile().get("persona_definition", "")
+        evaluable = []
         for candidate in candidates:
             profile = candidate.get("profile_json", {})
             if profile.get("persona_definition") == default_persona:
@@ -792,30 +823,52 @@ class ProfilePoolOptimizer:
                 candidate["f1_val"] = 0.0
                 candidate["val_days_count"] = 0
                 continue
-            result = self.evaluator.evaluate(
-                candidate["profile_json"],
-                val_sessions,
-                pdf_paths_dict,
-                max_val_days,
-            )
-            candidate["precision_val"] = result["precision"]
-            candidate["recall_val"] = result["recall"]
-            candidate["f1_val"] = result["f1"]
-            candidate["val_days_count"] = result["val_days_count"]
-            candidate["breakdown_str"] = result.get("breakdown_str", "")
+            evaluable.append(candidate)
+
+        if not evaluable:
+            return candidates
+
+        sampled_days = val_sessions[:max_val_days]
+
+        # Initialize per-candidate accumulators
+        for c in evaluable:
+            c["_eval_results"] = []
+
+        # Evaluate bin-by-bin across all candidates (KV cache friendly)
+        for day_idx, day_item in enumerate(sampled_days):
+            for c in evaluable:
+                day_result = self.evaluator.evaluate_single_day(
+                    c["profile_json"], day_item, pdf_paths_dict,
+                )
+                if day_result is not None:
+                    c["_eval_results"].append(day_result)
+
+        # Aggregate per-candidate results
+        for c in evaluable:
+            aggregated = self.evaluator.aggregate_results(c["_eval_results"])
+            c["precision_val"] = aggregated["precision"]
+            c["recall_val"] = aggregated["recall"]
+            c["f1_val"] = aggregated["f1"]
+            c["val_days_count"] = aggregated["val_days_count"]
+            c["breakdown_str"] = aggregated.get("breakdown_str", "")
+            del c["_eval_results"]
+
             logger.info(
-                f"📊 Candidate (gen {candidate.get('generation', 0)}): P={result['precision']:.3f} R={result['recall']:.3f} F1={result['f1']:.3f} ({result['val_days_count']} days)"
+                f"📊 Candidate (gen {c.get('generation', 0)}): "
+                f"P={aggregated['precision']:.3f} R={aggregated['recall']:.3f} "
+                f"F1={aggregated['f1']:.3f} ({aggregated['val_days_count']} days)"
             )
             self._dump_payload("evaluation", {
-                "id": candidate.get("id"),
-                "generation": candidate.get("generation", 0),
-                "parent_id": candidate.get("parent_id"),
-                "precision": result["precision"],
-                "recall": result["recall"],
-                "f1": result["f1"],
-                "val_days_count": result["val_days_count"],
-                "breakdown_str": result.get("breakdown_str", ""),
+                "id": c.get("id"),
+                "generation": c.get("generation", 0),
+                "parent_id": c.get("parent_id"),
+                "precision": aggregated["precision"],
+                "recall": aggregated["recall"],
+                "f1": aggregated["f1"],
+                "val_days_count": aggregated["val_days_count"],
+                "breakdown_str": aggregated.get("breakdown_str", ""),
             })
+
         return candidates
 
     def _prune_pool(self, candidates: list[dict]) -> list[dict]:

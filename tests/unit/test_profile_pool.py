@@ -256,10 +256,12 @@ class TestProfilePoolOptimizerInit:
         )
         optimizer.client.models.generate_content.return_value = mock_response
 
-        # Mock evaluation
-        evaluator.evaluate.return_value = {
+        # Mock evaluation (bin-by-bin across candidates)
+        evaluator.evaluate_single_day.return_value = {"day": "2026-01-02", "precision": 0.5, "recall": 0.8, "f1": 0.6, "tp_ids": set(), "fp_ids": set(), "fn_ids": set()}
+        evaluator.aggregate_results.return_value = {
             "precision": 0.5, "recall": 0.8, "f1": 0.6,
             "val_days_count": 2, "breakdown_str": "test",
+            "per_day_breakdown": [], "tp_paper_ids": set(), "fp_paper_ids": set(), "fn_paper_ids": set(),
         }
 
         train = _make_sessions([("2026-01-01", [("p1", 1)])])
@@ -326,9 +328,11 @@ class TestProfilePoolOptimizerEvolve:
         extractor._parse_json_response.return_value = mutated_profile
 
         # Mock evaluation
-        evaluator.evaluate.return_value = {
+        evaluator.evaluate_single_day.return_value = {"day": "2026-01-02", "precision": 0.6, "recall": 0.7, "f1": 0.65, "tp_ids": set(), "fp_ids": set(), "fn_ids": set()}
+        evaluator.aggregate_results.return_value = {
             "precision": 0.6, "recall": 0.7, "f1": 0.65,
             "val_days_count": 1, "breakdown_str": "test",
+            "per_day_breakdown": [], "tp_paper_ids": set(), "fp_paper_ids": set(), "fn_paper_ids": set(),
         }
 
         train = _make_sessions([("2026-01-01", [("p1", 1)])])
@@ -369,9 +373,9 @@ class TestProfilePoolOptimizerPrune:
         )
         optimizer.client.models.generate_content.return_value = mock_response
 
-        # Evaluate gives different F1s
+        # Evaluate gives different F1s per candidate
         call_count = [0]
-        def mock_evaluate(profile, val_days, pdf_paths, max_val, **kwargs):
+        def mock_aggregate(results, **kwargs):
             call_count[0] += 1
             return {
                 "precision": 0.5 + call_count[0] * 0.05,
@@ -379,8 +383,10 @@ class TestProfilePoolOptimizerPrune:
                 "f1": 0.5 + call_count[0] * 0.05,
                 "val_days_count": 1,
                 "breakdown_str": "",
+                "per_day_breakdown": [], "tp_paper_ids": set(), "fp_paper_ids": set(), "fn_paper_ids": set(),
             }
-        evaluator.evaluate.side_effect = mock_evaluate
+        evaluator.evaluate_single_day.return_value = {"day": "2026-01-02", "precision": 0.5, "recall": 0.5, "f1": 0.5, "tp_ids": set(), "fp_ids": set(), "fn_ids": set()}
+        evaluator.aggregate_results.side_effect = mock_aggregate
 
         # Use pool_size=2 to force pruning
         optimizer.pool_size = 2
@@ -445,9 +451,11 @@ class TestPoolDynamicEvolution:
         optimizer._mutate_profile = track_mutate
 
         # All candidates get same eval score (so mutation selection matters)
-        evaluator.evaluate.return_value = {
+        evaluator.evaluate_single_day.return_value = {"day": "2026-01-02", "precision": 0.5, "recall": 0.5, "f1": 0.5, "tp_ids": set(), "fp_ids": set(), "fn_ids": set()}
+        evaluator.aggregate_results.return_value = {
             "precision": 0.5, "recall": 0.5, "f1": 0.5,
             "val_days_count": 1, "breakdown_str": "",
+            "per_day_breakdown": [], "tp_paper_ids": set(), "fp_paper_ids": set(), "fn_paper_ids": set(),
         }
 
         train = _make_sessions([("2026-01-01", [("p1", 1)])])
@@ -484,14 +492,20 @@ class TestPoolDynamicEvolution:
         extractor._parse_json_response.side_effect = profiles
         extractor._build_pdf_contents.return_value = []
 
-        # Give different F1 scores per candidate
-        eval_count = [0]
-        def mock_evaluate(profile, *args, **kwargs):
-            eval_count[0] += 1
-            f1 = 0.3 if profile["persona_definition"] == "A" else 0.8
+        # Give different F1 scores per candidate via aggregate_results
+        def mock_aggregate(results, **kwargs):
+            # _eval_results are set by _evaluate_all; we can't easily get profile here,
+            # so cycle through scores
+            f1_scores = [0.3, 0.8, 0.8]  # A=0.3, B=0.8, C=0.8
+            idx = mock_aggregate.call_count
+            mock_aggregate.call_count += 1
+            f1 = f1_scores[idx % len(f1_scores)]
             return {"precision": f1, "recall": f1, "f1": f1,
-                    "val_days_count": 1, "breakdown_str": ""}
-        evaluator.evaluate.side_effect = mock_evaluate
+                    "val_days_count": 1, "breakdown_str": "",
+                    "per_day_breakdown": [], "tp_paper_ids": set(), "fp_paper_ids": set(), "fn_paper_ids": set()}
+        mock_aggregate.call_count = 0
+        evaluator.evaluate_single_day.return_value = {"day": "2026-01-02", "precision": 0.5, "recall": 0.5, "f1": 0.5, "tp_ids": set(), "fp_ids": set(), "fn_ids": set()}
+        evaluator.aggregate_results.side_effect = mock_aggregate
 
         train = _make_sessions([("2026-01-01", [("p1", 1)])])
         val = _make_sessions([("2026-01-02", [("p2", 1)])])
@@ -529,18 +543,27 @@ class TestPoolDynamicEvolution:
 
         # Boost 1: all 3 variants get F1=0.3
         # Boost 2: originals get F1=0.3, mutated gets F1=0.7
-        eval_results = iter([
-            {"precision": 0.3, "recall": 0.3, "f1": 0.3, "val_days_count": 1, "breakdown_str": ""},
-            {"precision": 0.3, "recall": 0.3, "f1": 0.3, "val_days_count": 1, "breakdown_str": ""},
-            {"precision": 0.3, "recall": 0.3, "f1": 0.3, "val_days_count": 1, "breakdown_str": ""},
+        agg_results = iter([
+            {"precision": 0.3, "recall": 0.3, "f1": 0.3, "val_days_count": 1, "breakdown_str": "",
+             "per_day_breakdown": [], "tp_paper_ids": set(), "fp_paper_ids": set(), "fn_paper_ids": set()},
+            {"precision": 0.3, "recall": 0.3, "f1": 0.3, "val_days_count": 1, "breakdown_str": "",
+             "per_day_breakdown": [], "tp_paper_ids": set(), "fp_paper_ids": set(), "fn_paper_ids": set()},
+            {"precision": 0.3, "recall": 0.3, "f1": 0.3, "val_days_count": 1, "breakdown_str": "",
+             "per_day_breakdown": [], "tp_paper_ids": set(), "fp_paper_ids": set(), "fn_paper_ids": set()},
             # Boost 2: 3 originals + 2 mutated
-            {"precision": 0.3, "recall": 0.3, "f1": 0.3, "val_days_count": 1, "breakdown_str": ""},
-            {"precision": 0.3, "recall": 0.3, "f1": 0.3, "val_days_count": 1, "breakdown_str": ""},
-            {"precision": 0.3, "recall": 0.3, "f1": 0.3, "val_days_count": 1, "breakdown_str": ""},
-            {"precision": 0.7, "recall": 0.7, "f1": 0.7, "val_days_count": 1, "breakdown_str": "TP/FP"},
-            {"precision": 0.7, "recall": 0.7, "f1": 0.7, "val_days_count": 1, "breakdown_str": "TP/FP"},
+            {"precision": 0.3, "recall": 0.3, "f1": 0.3, "val_days_count": 1, "breakdown_str": "",
+             "per_day_breakdown": [], "tp_paper_ids": set(), "fp_paper_ids": set(), "fn_paper_ids": set()},
+            {"precision": 0.3, "recall": 0.3, "f1": 0.3, "val_days_count": 1, "breakdown_str": "",
+             "per_day_breakdown": [], "tp_paper_ids": set(), "fp_paper_ids": set(), "fn_paper_ids": set()},
+            {"precision": 0.3, "recall": 0.3, "f1": 0.3, "val_days_count": 1, "breakdown_str": "",
+             "per_day_breakdown": [], "tp_paper_ids": set(), "fp_paper_ids": set(), "fn_paper_ids": set()},
+            {"precision": 0.7, "recall": 0.7, "f1": 0.7, "val_days_count": 1, "breakdown_str": "TP/FP",
+             "per_day_breakdown": [], "tp_paper_ids": set(), "fp_paper_ids": set(), "fn_paper_ids": set()},
+            {"precision": 0.7, "recall": 0.7, "f1": 0.7, "val_days_count": 1, "breakdown_str": "TP/FP",
+             "per_day_breakdown": [], "tp_paper_ids": set(), "fp_paper_ids": set(), "fn_paper_ids": set()},
         ])
-        evaluator.evaluate.side_effect = lambda *a, **k: next(eval_results)
+        evaluator.evaluate_single_day.return_value = {"day": "2026-01-02", "precision": 0.5, "recall": 0.5, "f1": 0.5, "tp_ids": set(), "fp_ids": set(), "fn_ids": set()}
+        evaluator.aggregate_results.side_effect = lambda *a, **k: next(agg_results)
 
         train = _make_sessions([("2026-01-01", [("p1", 1)])])
         val = _make_sessions([("2026-01-02", [("p2", 1)])])
@@ -581,9 +604,11 @@ class TestPoolDynamicEvolution:
                     "ranking_heuristics": []}
         optimizer._mutate_profile = capture_mutate
 
-        evaluator.evaluate.return_value = {
+        evaluator.evaluate_single_day.return_value = {"day": "2026-01-02", "precision": 0.6, "recall": 0.8, "f1": 0.667, "tp_ids": set(), "fp_ids": set(), "fn_ids": set()}
+        evaluator.aggregate_results.return_value = {
             "precision": 0.6, "recall": 0.8, "f1": 0.667,
             "val_days_count": 2, "breakdown_str": "",
+            "per_day_breakdown": [], "tp_paper_ids": set(), "fp_paper_ids": set(), "fn_paper_ids": set(),
         }
 
         # Parent has its own breakdown_str and f1_val from previous evaluation
