@@ -87,6 +87,7 @@ class ProfilePoolEntryIn(BaseModel):
     recall_val: Optional[float] = None
     f1_val: Optional[float] = None
     val_days_count: int = 0
+    breakdown_str: Optional[str] = None
 
 
 class ProfilePoolEntryOut(BaseModel):
@@ -100,6 +101,7 @@ class ProfilePoolEntryOut(BaseModel):
     generation: int = 0
     parent_id: Optional[int] = None
     mutation_note: Optional[str] = None
+    breakdown_str: Optional[str] = None
     is_active: bool = False
     created_at: Optional[str] = None
     evaluated_at: Optional[str] = None
@@ -112,3 +114,20 @@ class SaveProfilePoolRequest(BaseModel):
     """Request body for saving the full profile pool."""
     entries: List[ProfilePoolEntryIn]
     active_entry_index: int  # index into entries list that should be active
+
+
+class BoostHistoryIn(BaseModel):
+    """Request body for recording a boost event."""
+    boost_number: int
+    cumulative_likes: int
+    pool_version: int
+    gepa_precision: Optional[float] = None
+    gepa_recall: Optional[float] = None
+    gepa_f1: Optional[float] = None
+    single_precision: Optional[float] = None
+    single_recall: Optional[float] = None
+    single_f1: Optional[float] = None
+    active_profile_json: Optional[Dict[str, Any]] = None
+    changes_made: Optional[str] = None
+    pool_candidates_count: int = 0
+    pool_diversity: Optional[List[Dict[str, Any]]] = None

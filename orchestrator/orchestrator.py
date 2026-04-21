@@ -19,7 +19,7 @@ from tqdm import tqdm
 
 from core.arxiv.downloader import download_pdf
 from core.models import DocSet
-from core.profile_pool import PoolEvaluator, ProfilePoolOptimizer
+from core.profile_pool import PoolEvaluator, ProfilePoolOptimizer, repack_to_bins
 from core.rerankers import GeminiProfileExtractor, GeminiReranker, GeminiRerankerPDF
 
 # Add project root to path
@@ -740,12 +740,28 @@ class PaperIgnitionOrchestrator:
                         existing_pool = self.backend_client.get_profile_pool(username)
                         logging.info(f"Loaded {len(existing_pool)} existing pool entries for {username}")
 
+                        # Split: training = new sessions since last extraction, eval = all history
+                        try:
+                            user_data = self.backend_client.get(f"/api/users/by_email/{username}")
+                            last_extracted = user_data.get("profile_last_extracted_at")
+                        except Exception:
+                            last_extracted = None
+
+                        if last_extracted:
+                            last_date = last_extracted[:10] if isinstance(last_extracted, str) else last_extracted.strftime("%Y-%m-%d")
+                            train_sessions = [s for s in all_sessions if s["day"] > last_date]
+                        else:
+                            train_sessions = all_sessions
+
+                        eval_bins = repack_to_bins(all_sessions, bin_size=20)
+                        logging.info(f"Train: {len(train_sessions)} new sessions, Eval: {len(eval_bins)} bins from {len(all_sessions)} total sessions")
+
                         result = optimizer.run_optimization(
-                            all_sessions=all_sessions,
+                            train_sessions=train_sessions,
+                            val_bins=eval_bins,
                             pdf_paths_dict=pdf_paths_dict,
                             existing_pool=existing_pool if existing_pool else None,
                             max_papers=max_papers,
-                            max_val_days=max_val_days,
                         )
 
                         if result["active_profile"] is None:
@@ -775,6 +791,36 @@ class PaperIgnitionOrchestrator:
                                 len(result["pool"]),
                                 active.get("generation", 0),
                                 active.get("f1_val") or 0.0,
+                            )
+
+                            # Record boost history for F1 timeline
+                            cumulative_likes = sum(
+                                1 for s in all_sessions for c in s["candidates"] if c.get("label") == 1
+                            )
+                            changes_made = active.get("profile_json", {}).get("changes_made")
+                            pool_diversity = [
+                                {
+                                    "id": c.get("id"),
+                                    "gen": c.get("generation", 0),
+                                    "f1": c.get("f1_val"),
+                                    "note": (c.get("mutation_note") or "")[:60],
+                                }
+                                for c in result["pool"]
+                            ]
+                            self.backend_client.record_boost_history(
+                                username=username,
+                                boost_number=len(result["pool"]),  # approximate: use pool size as proxy
+                                cumulative_likes=cumulative_likes,
+                                pool_version=0,  # backend will have the correct version after save
+                                gepa_metrics={
+                                    "precision": active.get("precision_val"),
+                                    "recall": active.get("recall_val"),
+                                    "f1": active.get("f1_val"),
+                                },
+                                active_profile_json=active.get("profile_json"),
+                                changes_made=changes_made,
+                                pool_candidates_count=len(result["pool"]),
+                                pool_diversity=pool_diversity,
                             )
                         else:
                             logging.error(f"Failed to save profile pool for {username}")

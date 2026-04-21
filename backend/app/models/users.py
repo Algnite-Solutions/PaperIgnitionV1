@@ -185,6 +185,7 @@ class ProfilePoolEntry(Base):
     generation = Column(Integer, default=0)  # 0=initial extraction, 1+=refinement
     parent_id = Column(Integer, ForeignKey("profile_pool.id"), nullable=True)
     mutation_note = Column(Text, nullable=True)
+    breakdown_str = Column(Text, nullable=True)  # TP/FP/FN feedback from evaluator
 
     # Lifecycle
     is_active = Column(Boolean, default=False)
@@ -193,4 +194,39 @@ class ProfilePoolEntry(Base):
 
     __table_args__ = (
         Index("idx_profile_pool_active", "username", postgresql_where=(is_active is True)),
+    )
+
+
+class ProfileBoostHistory(Base):
+    """Append-only per-boost metrics for F1 trend visualization."""
+    __tablename__ = "profile_boost_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), ForeignKey("users.username"), nullable=False, index=True)
+    boost_number = Column(Integer, nullable=False)
+    cumulative_likes = Column(Integer, nullable=False)
+    pool_version = Column(Integer, nullable=False)
+
+    # CustomIgnition (GEPA) metrics
+    gepa_precision = Column(Float, nullable=True)
+    gepa_recall = Column(Float, nullable=True)
+    gepa_f1 = Column(Float, nullable=True)
+
+    # Single re-extraction baseline (optional, populated by trajectory runs)
+    single_precision = Column(Float, nullable=True)
+    single_recall = Column(Float, nullable=True)
+    single_f1 = Column(Float, nullable=True)
+
+    # Profile snapshot at this boost
+    active_profile_json = Column(JSONB, nullable=True)
+    changes_made = Column(Text, nullable=True)
+
+    # Pool stats
+    pool_candidates_count = Column(Integer, default=0)
+    pool_diversity_json = Column(JSONB, nullable=True)  # [{id, gen, f1, note}]
+
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index("idx_boost_history_username", "username"),
     )
