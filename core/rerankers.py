@@ -204,16 +204,16 @@ class GeminiRerankerPDF:
             except Exception as e:
                 error_str = str(e).lower()
                 is_throttle = any(err in error_str for err in ["503", "unavailable", "429", "quota", "too many requests"])
-                
+
                 if is_throttle and attempt < max_retries - 1:
                     sleep_time = backoff_factor ** attempt
                     logger.warning("API throttled (503/429), attempt %d/%d. Retrying in %ds...", attempt + 1, max_retries, sleep_time)
                     time.sleep(sleep_time)
                     continue
-                
+
                 logger.error("Error during reranking after retries: %s", e)
                 return [], ""
-                
+
         return retrieve_ids[:top_k], ""
 
     def _parse_document_ids(self, response_text: str) -> list[str]:
@@ -347,7 +347,7 @@ class GeminiProfileExtractor:
     def _parse_json_response(self, response_text: str) -> dict:
         """Parse JSON response, handling markdown blocks and preamble/postamble."""
         json_str = ""
-        
+
         # 1. Try markdown blocks
         if "```json" in response_text:
             start = response_text.find("```json") + 7
@@ -357,14 +357,14 @@ class GeminiProfileExtractor:
             start = response_text.find("```") + 3
             end = response_text.find("```", start)
             json_str = response_text[start:end].strip()
-            
+
         # 2. Try raw braces if no markdown
         if not json_str:
             start = response_text.find("{")
             end = response_text.rfind("}")
             if start != -1 and end != -1:
                 json_str = response_text[start:end+1].strip()
-                
+
         if not json_str:
             json_str = response_text.strip()
 

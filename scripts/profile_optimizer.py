@@ -117,7 +117,7 @@ def build_sessions(papers: list[dict]) -> tuple[list[dict], set[str]]:
         date = (p.get("recommendation_date") or "")[:10]
         if date:
             sessions_raw[date].append(p)
-            
+
     all_sessions = []
     all_paper_ids = set()
     for day, day_papers in sorted(sessions_raw.items()):
@@ -132,7 +132,7 @@ def build_sessions(papers: list[dict]) -> tuple[list[dict], set[str]]:
                 })
                 all_paper_ids.add(p["id"])
             all_sessions.append({"day": day, "candidates": candidates})
-            
+
     return all_sessions, all_paper_ids
 
 
@@ -315,7 +315,6 @@ def run_trajectory(
 
     trajectory = []
     previous_pool = None
-    prev_train_sessions = []
     prev_breakdown = None
     prev_gepa_f1 = None
 
@@ -333,7 +332,7 @@ def run_trajectory(
         # Evaluation track: repack all sessions seen so far into bins of 20
         all_eval_history = all_sessions[: session_cutoff + 1]
         eval_bins = repack_to_bins(all_eval_history, bin_size=20)
-        
+
         # Cap to max_val_bins if history is too large
         if len(eval_bins) > max_val_bins:
             eval_bins = eval_bins[-max_val_bins:]
@@ -364,7 +363,7 @@ def run_trajectory(
             fast_init=fast_init,
         )
 
-        # We no longer redundantly re-evaluate the active profile since it was perfectly evaluated inside run_optimization 
+        # We no longer redundantly re-evaluate the active profile since it was perfectly evaluated inside run_optimization
         gepa_metrics = gepa_result.get("active_metrics") or {"precision": None, "recall": None, "f1": None, "val_days": 0}
         gepa_breakdown = gepa_result.get("active_breakdown")
 
@@ -372,7 +371,7 @@ def run_trajectory(
             print(f"  GEPA eval: P={gepa_metrics['precision']:.3f} R={gepa_metrics['recall']:.3f} "
                 f"F1={gepa_metrics['f1']:.3f} ({gepa_metrics['val_days']} bins, uniform)")
         else:
-            print(f"  GEPA eval: skipped (no active profile or evaluation disabled)")
+            print("  GEPA eval: skipped (no active profile or evaluation disabled)")
 
         if gepa_result["active_profile"]:
             persona = gepa_result["active_profile"].get("persona_definition", "N/A")
@@ -381,7 +380,7 @@ def run_trajectory(
         # ── SINGLE PATH: re-extract from scratch ──
         if step_idx > 0:
             print("\n  --- Single Re-extraction (baseline) ---")
-            
+
             # We need the PDF mapping explicitly for the baseline evaluation
             all_eval_pdfs = {}
             for s in eval_bins:
@@ -445,7 +444,6 @@ def run_trajectory(
         })
 
         # Carry forward for next boost
-        prev_train_sessions = train_sessions
         previous_pool = gepa_result["pool"]
         prev_breakdown = gepa_breakdown
         prev_gepa_f1 = gepa_metrics.get("f1")
@@ -522,10 +520,10 @@ def main():
 
         # 4. Initialize components
         extractor = GeminiProfileExtractor(model_name=args.model)
-        
+
         # Use a hidden .cache directory for initial pool caching
         profile_cache_dir = project_root / ".cache" / "initial_pools"
-        
+
         if not args.no_eval:
             eval_reranker = GeminiRerankerPDF(
                 model_name=args.eval_model,
@@ -658,15 +656,12 @@ def _write_pool_to_db(args, trajectory: list[dict]):
             resp = http_requests.post(
                 f"{host}/api/users/boost-history/{args.user}",
                 json={
-                    "boost_number": 0,  # auto-assigned from pool_version
+                    "boost_number": 0,
                     "cumulative_likes": t["cumulative_likes"],
                     "pool_version": 0,
-                    "gepa_precision": t.get("gepa_precision"),
-                    "gepa_recall": t.get("gepa_recall"),
-                    "gepa_f1": t.get("gepa_f1"),
-                    "single_precision": t.get("single_precision"),
-                    "single_recall": t.get("single_recall"),
-                    "single_f1": t.get("single_f1"),
+                    "precision": t.get("gepa_precision"),
+                    "recall": t.get("gepa_recall"),
+                    "f1": t.get("gepa_f1"),
                     "active_profile_json": gepa_profile,
                     "changes_made": changes_made,
                     "pool_candidates_count": len(pool_at_step),

@@ -131,12 +131,9 @@ class BoostHistoryIn(BaseModel):
     boost_number: int
     cumulative_likes: int
     pool_version: int
-    gepa_precision: Optional[float] = None
-    gepa_recall: Optional[float] = None
-    gepa_f1: Optional[float] = None
-    single_precision: Optional[float] = None
-    single_recall: Optional[float] = None
-    single_f1: Optional[float] = None
+    precision: Optional[float] = None
+    recall: Optional[float] = None
+    f1: Optional[float] = None
     active_profile_json: Optional[Dict[str, Any]] = None
     changes_made: Optional[str] = None
     pool_candidates_count: int = 0

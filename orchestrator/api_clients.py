@@ -570,8 +570,7 @@ class BackendAPIClient(BaseAPIClient):
         boost_number: int,
         cumulative_likes: int,
         pool_version: int,
-        gepa_metrics: dict,
-        single_metrics: dict | None = None,
+        metrics: dict,
         active_profile_json: dict | None = None,
         changes_made: str | None = None,
         pool_candidates_count: int = 0,
@@ -585,12 +584,9 @@ class BackendAPIClient(BaseAPIClient):
                     "boost_number": boost_number,
                     "cumulative_likes": cumulative_likes,
                     "pool_version": pool_version,
-                    "gepa_precision": gepa_metrics.get("precision"),
-                    "gepa_recall": gepa_metrics.get("recall"),
-                    "gepa_f1": gepa_metrics.get("f1"),
-                    "single_precision": single_metrics.get("precision") if single_metrics else None,
-                    "single_recall": single_metrics.get("recall") if single_metrics else None,
-                    "single_f1": single_metrics.get("f1") if single_metrics else None,
+                    "precision": metrics.get("precision"),
+                    "recall": metrics.get("recall"),
+                    "f1": metrics.get("f1"),
                     "active_profile_json": active_profile_json,
                     "changes_made": changes_made,
                     "pool_candidates_count": pool_candidates_count,
@@ -598,7 +594,7 @@ class BackendAPIClient(BaseAPIClient):
                 },
             )
             self.logger.info(
-                f"Recorded boost history for {username}: boost #{boost_number}, F1={gepa_metrics.get('f1')}"
+                f"Recorded boost history for {username}: boost #{boost_number}, F1={metrics.get('f1')}"
             )
             return True
         except Exception as e:

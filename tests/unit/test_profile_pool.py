@@ -8,14 +8,12 @@ Tests cover:
 - Pool pruning
 """
 
-from unittest.mock import MagicMock, patch
-
 import json
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from core.profile_pool import ParetoFront, PoolEvaluator, ProfilePoolOptimizer, calculate_f1
-
 
 # ---------------------------------------------------------------------------
 # calculate_f1
@@ -441,7 +439,6 @@ class TestPoolDynamicEvolution:
 
         # Track which profiles get sent for mutation
         mutated_profiles = []
-        original_mutate = optimizer._mutate_profile
 
         def track_mutate(current_profile, *args, **kwargs):
             mutated_profiles.append(current_profile["persona_definition"])
@@ -461,7 +458,7 @@ class TestPoolDynamicEvolution:
         train = _make_sessions([("2026-01-01", [("p1", 1)])])
         val = _make_sessions([("2026-01-02", [("p2", 1)])])
 
-        result = optimizer.run_optimization(
+        optimizer.run_optimization(
             train_sessions=train,
             val_bins=val,
             pdf_paths_dict={"p1": "/a.pdf", "p2": "/b.pdf"},

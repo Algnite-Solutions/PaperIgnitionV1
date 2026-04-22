@@ -100,7 +100,6 @@ def main():
                     n_c = len(valid_cands)
                     jitter = np.random.default_rng(seed=bx).uniform(-0.15, 0.15, n_c)
                     f1_vals = [c["f1"] for c in valid_cands]
-                    gen_vals = [c["gen"] for c in valid_cands]
                     ax.scatter(
                         bx + jitter, f1_vals,
                         s=25, color=ci_color, alpha=0.25,

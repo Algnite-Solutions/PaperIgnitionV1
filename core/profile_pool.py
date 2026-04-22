@@ -255,7 +255,7 @@ class PoolEvaluator:
                     abstract = c.get("abstract", "")[:120].replace("\n", " ")
                     parts.append(f'- "{title}"')
                     if abstract:
-                        parts.append(f'  *Snippet:* "{abstract}..."')
+                        parts.append(f'  *Abstract:* "{abstract}..."')
             else:
                 parts.append("")
                 parts.append("**False Positives:** (none — good precision!)")
@@ -271,7 +271,7 @@ class PoolEvaluator:
                     abstract = c.get("abstract", "")[:120].replace("\n", " ")
                     parts.append(f'- "{title}"')
                     if abstract:
-                        parts.append(f'  *Snippet:* "{abstract}..."')
+                        parts.append(f'  *Abstract:* "{abstract}..."')
             else:
                 parts.append("")
                 parts.append("**False Negatives:** (none — good recall!)")

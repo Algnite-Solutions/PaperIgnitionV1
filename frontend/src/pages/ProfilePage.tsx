@@ -235,7 +235,6 @@ function BoosterSection({ profile }: { profile: UserProfile }) {
   const eligible = booster?.eligible ?? false
   const requested = booster?.requested ?? false
   const poolSize = booster?.pool_size ?? 0
-  const bestF1 = booster?.best_f1
 
   const boost = useMutation({
     mutationFn: triggerBoost,
@@ -254,7 +253,7 @@ function BoosterSection({ profile }: { profile: UserProfile }) {
       </p>
       {poolSize > 0 && (
         <p className="text-xs text-indigo-600 dark:text-indigo-400 mb-4">
-          Profile optimized from {poolSize} candidates{bestF1 !== null ? ` (best match quality: ${Math.round(bestF1 * 100)}%)` : ''}
+          Profile optimized from {poolSize} candidates
         </p>
       )}
 

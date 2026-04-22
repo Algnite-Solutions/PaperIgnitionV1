@@ -207,15 +207,10 @@ class ProfileBoostHistory(Base):
     cumulative_likes = Column(Integer, nullable=False)
     pool_version = Column(Integer, nullable=False)
 
-    # CustomIgnition (GEPA) metrics
-    gepa_precision = Column(Float, nullable=True)
-    gepa_recall = Column(Float, nullable=True)
-    gepa_f1 = Column(Float, nullable=True)
-
-    # Single re-extraction baseline (optional, populated by trajectory runs)
-    single_precision = Column(Float, nullable=True)
-    single_recall = Column(Float, nullable=True)
-    single_f1 = Column(Float, nullable=True)
+    # Pool evaluation metrics
+    precision = Column(Float, nullable=True)
+    recall = Column(Float, nullable=True)
+    f1 = Column(Float, nullable=True)
 
     # Profile snapshot at this boost
     active_profile_json = Column(JSONB, nullable=True)

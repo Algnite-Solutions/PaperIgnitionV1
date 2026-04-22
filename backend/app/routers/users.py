@@ -647,12 +647,9 @@ async def record_boost_history(
     if entry:
         entry.cumulative_likes = body.cumulative_likes
         entry.pool_version = body.pool_version
-        entry.gepa_precision = body.gepa_precision
-        entry.gepa_recall = body.gepa_recall
-        entry.gepa_f1 = body.gepa_f1
-        entry.single_precision = body.single_precision
-        entry.single_recall = body.single_recall
-        entry.single_f1 = body.single_f1
+        entry.precision = body.precision
+        entry.recall = body.recall
+        entry.f1 = body.f1
         entry.active_profile_json = body.active_profile_json
         entry.changes_made = body.changes_made
         entry.pool_candidates_count = body.pool_candidates_count
@@ -663,12 +660,9 @@ async def record_boost_history(
             boost_number=body.boost_number,
             cumulative_likes=body.cumulative_likes,
             pool_version=body.pool_version,
-            gepa_precision=body.gepa_precision,
-            gepa_recall=body.gepa_recall,
-            gepa_f1=body.gepa_f1,
-            single_precision=body.single_precision,
-            single_recall=body.single_recall,
-            single_f1=body.single_f1,
+            precision=body.precision,
+            recall=body.recall,
+            f1=body.f1,
             active_profile_json=body.active_profile_json,
             changes_made=body.changes_made,
             pool_candidates_count=body.pool_candidates_count,
@@ -693,12 +687,9 @@ async def get_boost_history(username: str, db: AsyncSession = Depends(get_db)):
             "boost_number": e.boost_number,
             "cumulative_likes": e.cumulative_likes,
             "pool_version": e.pool_version,
-            "gepa_f1": e.gepa_f1,
-            "gepa_precision": e.gepa_precision,
-            "gepa_recall": e.gepa_recall,
-            "single_f1": e.single_f1,
-            "single_precision": e.single_precision,
-            "single_recall": e.single_recall,
+            "f1": e.f1,
+            "precision": e.precision,
+            "recall": e.recall,
             "changes_made": e.changes_made,
             "pool_candidates_count": e.pool_candidates_count,
             "pool_diversity": e.pool_diversity_json,

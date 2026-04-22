@@ -119,10 +119,12 @@ class PaperIgnitionOrchestrator:
         self,
         orchestrator_config_file,
         stage_overrides=None,
-        user_filter=None
+        user_filter=None,
+        target_date=None,
     ):
         self.stage_overrides = stage_overrides
         self.user_filter = user_filter
+        self.target_date = target_date
         self.setup_environment()
 
         # Load orchestrator configuration
@@ -307,6 +309,12 @@ class PaperIgnitionOrchestrator:
         logging.info(f"Starting daily paper fetch... (lazy_mode={lazy_mode})")
         job_id = await self.job_logger.start_job_log(job_type="daily_paper_fetch", username="system")
 
+        fetch_time = None
+        if self.target_date:
+            target = datetime.strptime(self.target_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            fetch_time = (target + timedelta(days=1)).strftime("%Y%m%d%H%M")
+            logging.info(f"Backfill mode: fetching papers for {self.target_date} (time={fetch_time})")
+
         success = False
         papers = []
         try:
@@ -317,10 +325,10 @@ class PaperIgnitionOrchestrator:
 
             if lazy_mode:
                 # Lazy mode: metadata only — content extraction deferred to recommendation stage
-                papers = self.paper_service.fetch_metadata_only()
+                papers = self.paper_service.fetch_metadata_only(time=fetch_time)
             else:
                 # Full mode: metadata + content extraction for all papers
-                papers = self.paper_service.fetch_daily_papers()
+                papers = self.paper_service.fetch_daily_papers(time=fetch_time)
             logging.info(f"Fetched {len(papers)} papers from arXiv (lazy_mode={lazy_mode})")
 
             # Store papers and generate embeddings
@@ -457,9 +465,15 @@ class PaperIgnitionOrchestrator:
                 logging.info(f"[{username}] {len(existing_paper_ids)} existing paper recommendations found")
 
             # Build date filter
-            end_date = datetime.now(timezone.utc).strftime('%Y-%m-%d 23:59:59+00:00')
             search_days = self.orch_config.get("user_recommendation", {}).get("search_days", 5)
-            start_date = (datetime.now(timezone.utc) - timedelta(days=search_days)).strftime('%Y-%m-%d 00:00:00+00:00')
+            if self.target_date:
+                target = datetime.strptime(self.target_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                end_date = (target + timedelta(days=1)).strftime('%Y-%m-%d 23:59:59+00:00')
+                start_date = (target - timedelta(days=search_days)).strftime('%Y-%m-%d 00:00:00+00:00')
+                logging.info(f"[{username}] Backfill date: {self.target_date}, search window: {start_date} to {end_date}")
+            else:
+                end_date = datetime.now(timezone.utc).strftime('%Y-%m-%d 23:59:59+00:00')
+                start_date = (datetime.now(timezone.utc) - timedelta(days=search_days)).strftime('%Y-%m-%d 00:00:00+00:00')
 
             filter_params = None
             if existing_paper_ids:
@@ -655,7 +669,6 @@ class PaperIgnitionOrchestrator:
             eval_reranker = GeminiRerankerPDF(
                 model_name=model_id,
                 prompt_key="personalized_subset_selection_prompt",
-                enable_thinking=False,
             )
             evaluator = PoolEvaluator(eval_reranker)
             optimizer = ProfilePoolOptimizer(
@@ -809,10 +822,10 @@ class PaperIgnitionOrchestrator:
                             ]
                             self.backend_client.record_boost_history(
                                 username=username,
-                                boost_number=len(result["pool"]),  # approximate: use pool size as proxy
+                                boost_number=len(result["pool"]),
                                 cumulative_likes=cumulative_likes,
                                 pool_version=0,  # backend will have the correct version after save
-                                gepa_metrics={
+                                metrics={
                                     "precision": active.get("precision_val"),
                                     "recall": active.get("recall_val"),
                                     "f1": active.get("f1_val"),
@@ -1000,8 +1013,8 @@ class PaperIgnitionOrchestrator:
 
 
 # Main execution
-async def main(config_file: Optional[str] = None, stage_overrides=None, user_filter=None):
-    orchestrator = PaperIgnitionOrchestrator(config_file, stage_overrides=stage_overrides, user_filter=user_filter)
+async def main(config_file: Optional[str] = None, stage_overrides=None, user_filter=None, target_date=None):
+    orchestrator = PaperIgnitionOrchestrator(config_file, stage_overrides=stage_overrides, user_filter=user_filter, target_date=target_date)
 
     try:
         results = await orchestrator.run_all_tasks()
@@ -1021,5 +1034,7 @@ if __name__ == "__main__":
                         help="Stages to run, overrides config. Options: fetch_daily_papers, generate_per_user_blogs")
     parser.add_argument("--users", nargs="+",
                         help="Limit processing to specific usernames (e.g. --users foo@bar.com demo@example.com)")
+    parser.add_argument("--date",
+                        help="Target date for backfill (YYYY-MM-DD). Overrides datetime.now() for paper fetch and blog generation.")
     args = parser.parse_args()
-    asyncio.run(main(args.config, stage_overrides=args.stages, user_filter=args.users))
+    asyncio.run(main(args.config, stage_overrides=args.stages, user_filter=args.users, target_date=args.date))
