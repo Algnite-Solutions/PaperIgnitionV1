@@ -236,7 +236,7 @@ class TestPoolEvaluator:
         ])
         pdf_paths = {}  # no PDFs
         evaluator = self._make_evaluator({})
-        
+
         results = []
         for s in sessions:
             res = evaluator.evaluate_single_day({}, s, pdf_paths)
