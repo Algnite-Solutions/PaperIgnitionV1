@@ -19,6 +19,7 @@ from tqdm import tqdm
 
 from core.arxiv.downloader import download_pdf
 from core.models import DocSet
+from core.profile_pool import PoolEvaluator, ProfilePoolOptimizer, repack_to_bins
 from core.rerankers import GeminiProfileExtractor, GeminiReranker, GeminiRerankerPDF
 
 # Add project root to path
@@ -118,10 +119,12 @@ class PaperIgnitionOrchestrator:
         self,
         orchestrator_config_file,
         stage_overrides=None,
-        user_filter=None
+        user_filter=None,
+        target_date=None,
     ):
         self.stage_overrides = stage_overrides
         self.user_filter = user_filter
+        self.target_date = target_date
         self.setup_environment()
 
         # Load orchestrator configuration
@@ -306,6 +309,12 @@ class PaperIgnitionOrchestrator:
         logging.info(f"Starting daily paper fetch... (lazy_mode={lazy_mode})")
         job_id = await self.job_logger.start_job_log(job_type="daily_paper_fetch", username="system")
 
+        fetch_time = None
+        if self.target_date:
+            target = datetime.strptime(self.target_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            fetch_time = (target + timedelta(days=1)).strftime("%Y%m%d%H%M")
+            logging.info(f"Backfill mode: fetching papers for {self.target_date} (time={fetch_time})")
+
         success = False
         papers = []
         try:
@@ -316,10 +325,10 @@ class PaperIgnitionOrchestrator:
 
             if lazy_mode:
                 # Lazy mode: metadata only — content extraction deferred to recommendation stage
-                papers = self.paper_service.fetch_metadata_only()
+                papers = self.paper_service.fetch_metadata_only(time=fetch_time)
             else:
                 # Full mode: metadata + content extraction for all papers
-                papers = self.paper_service.fetch_daily_papers()
+                papers = self.paper_service.fetch_daily_papers(time=fetch_time)
             logging.info(f"Fetched {len(papers)} papers from arXiv (lazy_mode={lazy_mode})")
 
             # Store papers and generate embeddings
@@ -456,9 +465,15 @@ class PaperIgnitionOrchestrator:
                 logging.info(f"[{username}] {len(existing_paper_ids)} existing paper recommendations found")
 
             # Build date filter
-            end_date = datetime.now(timezone.utc).strftime('%Y-%m-%d 23:59:59+00:00')
             search_days = self.orch_config.get("user_recommendation", {}).get("search_days", 5)
-            start_date = (datetime.now(timezone.utc) - timedelta(days=search_days)).strftime('%Y-%m-%d 00:00:00+00:00')
+            if self.target_date:
+                target = datetime.strptime(self.target_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                end_date = (target + timedelta(days=1)).strftime('%Y-%m-%d 23:59:59+00:00')
+                start_date = (target - timedelta(days=search_days)).strftime('%Y-%m-%d 00:00:00+00:00')
+                logging.info(f"[{username}] Backfill date: {self.target_date}, search window: {start_date} to {end_date}")
+            else:
+                end_date = datetime.now(timezone.utc).strftime('%Y-%m-%d 23:59:59+00:00')
+                start_date = (datetime.now(timezone.utc) - timedelta(days=search_days)).strftime('%Y-%m-%d 00:00:00+00:00')
 
             filter_params = None
             if existing_paper_ids:
@@ -615,13 +630,14 @@ class PaperIgnitionOrchestrator:
                 continue
 
     async def run_extract_user_profiles(self):
-        """Run Customization Booster: extract research profiles for users who requested it.
+        """Run Customization Booster: extract/optimize research profiles for users who requested it.
 
         For each user with profile_boost_requested=True:
         1. Fetch their recommendation history (liked + not-liked papers)
         2. Download paper PDFs from arXiv to a temp directory
-        3. Run GeminiProfileExtractor to generate profile_json
-        4. Save profile and reset the boost flag via backend API
+        3. If profile_pool enabled and enough data: run GEPA-style pool optimization
+           Else: fall back to single-profile extraction
+        4. Save profile(s) and reset the boost flag via backend API
         """
         logging.info("Starting profile extraction for boost-requested users...")
 
@@ -630,15 +646,50 @@ class PaperIgnitionOrchestrator:
             logging.info("No users with profile boost requested — skipping.")
             return
 
+        # Filter to specific users if provided
+        if self.user_filter:
+            usernames = [u for u in usernames if u in self.user_filter]
+            if not usernames:
+                logging.info(f"No target users ({self.user_filter}) with boost requested — skipping.")
+                return
+
         model_id = self.orch_config.get("models", {}).get("profile_extraction", {}).get("model_id", "gemini-3-flash-preview")
+        pool_config = self.orch_config.get("profile_pool", {})
+        pool_enabled = pool_config.get("enabled", True)
+        max_papers = pool_config.get("max_papers", 50)
+        max_val_days = pool_config.get("max_val_days", 7)
+        min_days_for_pool = pool_config.get("min_days_for_pool", 10)
+        fallback = pool_config.get("fallback_to_single_profile", True)
+
         extractor = GeminiProfileExtractor(model_name=model_id)
+
+        # Initialize pool optimizer if enabled
+        optimizer = None
+        if pool_enabled:
+            eval_reranker = GeminiRerankerPDF(
+                model_name=model_id,
+                prompt_key="personalized_subset_selection_prompt",
+                enable_thinking=False,
+            )
+            evaluator = PoolEvaluator(eval_reranker)
+            optimizer = ProfilePoolOptimizer(
+                extractor=extractor,
+                evaluator=evaluator,
+                pool_size=pool_config.get("pool_size", 3),
+                max_mutations=pool_config.get("max_mutations_per_cycle", 2),
+                model_name=model_id,
+            )
+            logging.info("Profile pool optimization ENABLED (pool_size=%d, max_val_days=%d)",
+                         pool_config.get("pool_size", 3), max_val_days)
+        else:
+            logging.info("Profile pool optimization DISABLED — using single-profile extraction")
 
         for username in usernames:
             logging.info(f"Processing profile boost for user: {username}")
             tmp_dir = Path(tempfile.mkdtemp(prefix="profile_boost_"))
             try:
                 # Fetch all recommendation records for the user
-                papers = self.backend_client.get_user_papers(username)
+                papers = self.backend_client.get_user_papers(username, limit=1000)
                 if not papers:
                     logging.warning(f"No recommendation history for {username}, skipping.")
                     continue
@@ -650,9 +701,10 @@ class PaperIgnitionOrchestrator:
                     if rec_date:
                         sessions[rec_date].append(p)
 
-                training_data = []
+                all_sessions = []
                 all_paper_ids: set = set()
-                for day, day_papers in sorted(sessions.items()):
+                # Reverse the time order
+                for day, day_papers in sorted(sessions.items(), reverse=True):
                     positives = [p for p in day_papers if p.get("blog_liked") is True]
                     if not positives:
                         continue
@@ -664,11 +716,13 @@ class PaperIgnitionOrchestrator:
                     for p in negatives:
                         candidates.append({"paper_id": p["id"], "label": 0, "title": p.get("title", ""), "abstract": p.get("abstract", "")})
                         all_paper_ids.add(p["id"])
-                    training_data.append({"day": day, "candidates": candidates})
+                    all_sessions.append({"day": day, "candidates": candidates})
 
-                if not training_data:
+                if not all_sessions:
                     logging.warning(f"No sessions with liked papers for {username}, skipping.")
                     continue
+
+                logging.info(f"User {username}: {len(all_sessions)} sessions with positives, {len(all_paper_ids)} unique papers")
 
                 # Download PDFs from arXiv
                 pdf_paths_dict: dict = {}
@@ -688,14 +742,115 @@ class PaperIgnitionOrchestrator:
 
                 logging.info(f"Downloaded {len(pdf_paths_dict)}/{len(all_paper_ids)} PDFs for {username}")
 
-                profile, usage = extractor.extract_profile(training_data, pdf_paths_dict)
-                success = self.backend_client.complete_profile_boost(username, profile)
-                if success:
-                    logging.info(
-                        f"Profile boost done for {username} — tokens: {usage.get('total_tokens', 0)}"
-                    )
+                # Decide: pool optimization or single extraction
+                use_pool = (
+                    pool_enabled
+                    and optimizer is not None
+                    and len(all_sessions) >= min_days_for_pool
+                )
+
+                if use_pool:
+                    try:
+                        # Load existing pool from DB
+                        existing_pool = self.backend_client.get_profile_pool(username)
+                        logging.info(f"Loaded {len(existing_pool)} existing pool entries for {username}")
+
+                        # Split: training = new sessions since last extraction, eval = all history
+                        try:
+                            user_data = self.backend_client.get(f"/api/users/by_email/{username}")
+                            last_extracted = user_data.get("profile_last_extracted_at")
+                        except Exception:
+                            last_extracted = None
+
+                        if last_extracted:
+                            last_date = last_extracted[:10] if isinstance(last_extracted, str) else last_extracted.strftime("%Y-%m-%d")
+                            train_sessions = [s for s in all_sessions if s["day"] > last_date]
+                        else:
+                            train_sessions = all_sessions
+
+                        eval_bins = repack_to_bins(all_sessions, bin_size=20)
+                        logging.info(f"Train: {len(train_sessions)} new sessions, Eval: {len(eval_bins)} bins from {len(all_sessions)} total sessions")
+
+                        result = optimizer.run_optimization(
+                            train_sessions=train_sessions,
+                            val_bins=eval_bins,
+                            pdf_paths_dict=pdf_paths_dict,
+                            existing_pool=existing_pool if existing_pool else None,
+                            max_papers=max_papers,
+                            max_val_days=max_val_days
+                        )
+
+                        if result["active_profile"] is None:
+                            logging.error(f"Pool optimization returned no active profile for {username}")
+                            if fallback:
+                                self._fallback_single_extraction(extractor, all_sessions, pdf_paths_dict, max_papers, username)
+                            continue
+
+                        # Find the active entry index
+                        active_idx = 0
+                        for i, entry in enumerate(result["pool"]):
+                            if entry.get("is_active"):
+                                active_idx = i
+                                break
+
+                        # Save pool to backend
+                        success = self.backend_client.save_profile_pool(
+                            username,
+                            entries=result["pool"],
+                            active_entry_index=active_idx,
+                        )
+                        if success:
+                            active = result["pool"][active_idx]
+                            logging.info(
+                                f"Pool boost done for {username} — %d candidates, "
+                                "active gen=%d, F1=%.3f",
+                                len(result["pool"]),
+                                active.get("generation", 0),
+                                active.get("f1_val") or 0.0,
+                            )
+
+                            # Record boost history for F1 timeline
+                            cumulative_likes = sum(
+                                1 for s in all_sessions for c in s["candidates"] if c.get("label") == 1
+                            )
+                            changes_made = active.get("profile_json", {}).get("changes_made")
+                            pool_diversity = [
+                                {
+                                    "id": c.get("id"),
+                                    "gen": c.get("generation", 0),
+                                    "f1": c.get("f1_val"),
+                                    "note": (c.get("mutation_note") or "")[:60],
+                                }
+                                for c in result["pool"]
+                            ]
+                            self.backend_client.record_boost_history(
+                                username=username,
+                                boost_number=len(result["pool"]),
+                                cumulative_likes=cumulative_likes,
+                                pool_version=0,  # backend will have the correct version after save
+                                metrics={
+                                    "precision": active.get("precision_val"),
+                                    "recall": active.get("recall_val"),
+                                    "f1": active.get("f1_val"),
+                                },
+                                active_profile_json=active.get("profile_json"),
+                                changes_made=changes_made,
+                                pool_candidates_count=len(result["pool"]),
+                                pool_diversity=pool_diversity,
+                            )
+                        else:
+                            logging.error(f"Failed to save profile pool for {username}")
+
+                    except Exception as e:
+                        logging.error(f"Pool optimization failed for {username}: {e}")
+                        if fallback:
+                            logging.info(f"Falling back to single-profile extraction for {username}")
+                            self._fallback_single_extraction(extractor, all_sessions, pdf_paths_dict, max_papers, username)
                 else:
-                    logging.error(f"Failed to save profile boost for {username}")
+                    # Single-profile extraction (old behavior)
+                    reason = "disabled" if not pool_enabled else f"not enough sessions ({len(all_sessions)} < {min_days_for_pool})"
+                    logging.info(f"Using single-profile extraction for {username} (reason: {reason})")
+                    self._fallback_single_extraction(extractor, all_sessions, pdf_paths_dict, max_papers, username)
 
             except Exception as e:
                 logging.error(f"Profile boost failed for {username}: {e}")
@@ -703,6 +858,23 @@ class PaperIgnitionOrchestrator:
                 shutil.rmtree(tmp_dir, ignore_errors=True)
 
         logging.info("Profile extraction stage complete.")
+
+    def _fallback_single_extraction(
+        self,
+        extractor: GeminiProfileExtractor,
+        all_sessions: list,
+        pdf_paths_dict: dict,
+        max_papers: int,
+        username: str,
+    ):
+        """Fall back to single-profile extraction (original behavior)."""
+        # Use all sessions as training data (original behavior)
+        profile, usage = extractor.extract_profile(all_sessions, pdf_paths_dict, max_papers=max_papers)
+        success = self.backend_client.complete_profile_boost(username, profile)
+        if success:
+            logging.info(f"Single-profile boost done for {username} — tokens: {usage.get('total_tokens', 0)}")
+        else:
+            logging.error(f"Failed to save profile boost for {username}")
 
     async def run_per_user_blog_generation(self):
         """Run recommendation generation task for each user"""
@@ -844,8 +1016,8 @@ class PaperIgnitionOrchestrator:
 
 
 # Main execution
-async def main(config_file: Optional[str] = None, stage_overrides=None, user_filter=None):
-    orchestrator = PaperIgnitionOrchestrator(config_file, stage_overrides=stage_overrides, user_filter=user_filter)
+async def main(config_file: Optional[str] = None, stage_overrides=None, user_filter=None, target_date=None):
+    orchestrator = PaperIgnitionOrchestrator(config_file, stage_overrides=stage_overrides, user_filter=user_filter, target_date=target_date)
 
     try:
         results = await orchestrator.run_all_tasks()
@@ -865,5 +1037,7 @@ if __name__ == "__main__":
                         help="Stages to run, overrides config. Options: fetch_daily_papers, generate_per_user_blogs")
     parser.add_argument("--users", nargs="+",
                         help="Limit processing to specific usernames (e.g. --users foo@bar.com demo@example.com)")
+    parser.add_argument("--date",
+                        help="Target date for backfill (YYYY-MM-DD). Overrides datetime.now() for paper fetch and blog generation.")
     args = parser.parse_args()
-    asyncio.run(main(args.config, stage_overrides=args.stages, user_filter=args.users))
+    asyncio.run(main(args.config, stage_overrides=args.stages, user_filter=args.users, target_date=args.date))

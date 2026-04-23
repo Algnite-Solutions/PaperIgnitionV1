@@ -9,10 +9,24 @@ from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from ..auth.schemas import BoosterStatus, UserOut, UserProfileUpdate
+from ..auth.schemas import (
+    BoosterStatus,
+    BoostHistoryIn,
+    ProfilePoolEntryOut,
+    SaveProfilePoolRequest,
+    UserOut,
+    UserProfileUpdate,
+)
 from ..auth.utils import get_current_user
 from ..db_utils import get_db
-from ..models.users import FavoritePaper, ResearchDomain, User, UserPaperRecommendation
+from ..models.users import (
+    FavoritePaper,
+    ProfileBoostHistory,
+    ProfilePoolEntry,
+    ResearchDomain,
+    User,
+    UserPaperRecommendation,
+)
 from ..utils.index_utils import translate_text_gemini
 
 logger = logging.getLogger(__name__)
@@ -46,10 +60,26 @@ async def _compute_booster_status(user, db: AsyncSession) -> BoosterStatus:
             UserPaperRecommendation.recommendation_date > user.profile_last_extracted_at
         )
     new_likes_count = await db.scalar(query) or 0
+
+    # Pool stats
+    pool_count = await db.scalar(
+        select(func.count(ProfilePoolEntry.id)).where(
+            ProfilePoolEntry.username == user.username
+        )
+    ) or 0
+    best_f1 = await db.scalar(
+        select(func.max(ProfilePoolEntry.f1_val)).where(
+            ProfilePoolEntry.username == user.username,
+            ProfilePoolEntry.f1_val.isnot(None),
+        )
+    )
+
     return BoosterStatus(
         new_likes_count=new_likes_count,
         eligible=new_likes_count >= 5,
         requested=bool(user.profile_boost_requested),
+        pool_size=pool_count,
+        best_f1=best_f1,
     )
 
 
@@ -361,6 +391,9 @@ async def get_user_by_email(
         "rewrite_interest": user.rewrite_interest,
         "profile_json": user.profile_json,
         "blog_language": user.blog_language,
+        "profile_last_extracted_at": user.profile_last_extracted_at.isoformat() if user.profile_last_extracted_at else None,
+        "profile_pool_version": user.profile_pool_version,
+        "profile_boost_requested": user.profile_boost_requested,
         "research_domain_ids": research_domain_ids
     }
 
@@ -450,3 +483,217 @@ async def complete_profile_boost(
     logger.info(f"Profile boost completed for user {username}")
     return {"status": "ok", "username": username}
 
+
+# ── Profile Pool Endpoints (GEPA-style optimization) ──────────────────────────
+
+
+@router.get("/profile-pool/{username}", response_model=List[ProfilePoolEntryOut])
+async def get_profile_pool(username: str, db: AsyncSession = Depends(get_db)):
+    """Get all profile pool entries for a user (orchestrator-facing, no auth)."""
+    result = await db.execute(
+        select(ProfilePoolEntry)
+        .where(ProfilePoolEntry.username == username)
+        .order_by(ProfilePoolEntry.generation, ProfilePoolEntry.id)
+    )
+    entries = result.scalars().all()
+    return [
+        {
+            "id": e.id,
+            "profile_json": e.profile_json,
+            "precision_val": e.precision_val,
+            "recall_val": e.recall_val,
+            "f1_val": e.f1_val,
+            "val_days_count": e.val_days_count,
+            "generation": e.generation,
+            "parent_id": e.parent_id,
+            "mutation_note": e.mutation_note,
+            "breakdown_str": e.breakdown_str,
+            "is_active": e.is_active,
+            "created_at": e.created_at.isoformat() if e.created_at else None,
+            "evaluated_at": e.evaluated_at.isoformat() if e.evaluated_at else None,
+        }
+        for e in entries
+    ]
+
+
+@router.post("/profile-pool/{username}")
+async def save_profile_pool(
+    username: str,
+    body: SaveProfilePoolRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Replace the profile pool for a user and update the active profile.
+
+    Orchestrator-facing, no auth.
+    """
+    # Verify user exists
+    result = await db.execute(select(User).where(User.username == username))
+    user = result.scalars().first()
+    if not user:
+        raise HTTPException(status_code=404, detail=f"User {username} not found")
+
+    # Delete existing pool entries
+    await db.execute(
+        ProfilePoolEntry.__table__.delete().where(
+            ProfilePoolEntry.username == username
+        )
+    )
+
+    # Insert new entries
+    active_profile = None
+    for i, entry_in in enumerate(body.entries):
+        is_active = i == body.active_entry_index
+        new_entry = ProfilePoolEntry(
+            username=username,
+            profile_json=entry_in.profile_json,
+            generation=entry_in.generation,
+            parent_id=entry_in.parent_id,
+            mutation_note=entry_in.mutation_note,
+            breakdown_str=entry_in.breakdown_str,
+            is_active=is_active,
+            precision_val=entry_in.precision_val,
+            recall_val=entry_in.recall_val,
+            f1_val=entry_in.f1_val,
+            val_days_count=entry_in.val_days_count,
+            evaluated_at=datetime.now(timezone.utc)
+            if entry_in.f1_val is not None
+            else None,
+        )
+        db.add(new_entry)
+        if is_active:
+            active_profile = entry_in.profile_json
+
+    # Update user record
+    if active_profile:
+        user.profile_json = active_profile
+    user.profile_pool_version = (user.profile_pool_version or 0) + 1
+    user.profile_boost_requested = False
+    user.profile_last_extracted_at = datetime.now(timezone.utc)
+    db.add(user)
+
+    await db.commit()
+    logger.info(
+        "Saved profile pool for %s: %d entries, active_index=%d",
+        username,
+        len(body.entries),
+        body.active_entry_index,
+    )
+    return {"status": "ok", "username": username, "pool_size": len(body.entries)}
+
+
+@router.get("/me/profile-pool", response_model=List[ProfilePoolEntryOut])
+async def get_my_profile_pool(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get current user's profile pool entries (JWT auth)."""
+    result = await db.execute(
+        select(ProfilePoolEntry)
+        .where(ProfilePoolEntry.username == current_user.username)
+        .order_by(ProfilePoolEntry.generation, ProfilePoolEntry.id)
+    )
+    entries = result.scalars().all()
+    return [
+        {
+            "id": e.id,
+            "profile_json": e.profile_json,
+            "precision_val": e.precision_val,
+            "recall_val": e.recall_val,
+            "f1_val": e.f1_val,
+            "val_days_count": e.val_days_count,
+            "generation": e.generation,
+            "parent_id": e.parent_id,
+            "mutation_note": e.mutation_note,
+            "breakdown_str": e.breakdown_str,
+            "is_active": e.is_active,
+            "created_at": e.created_at.isoformat() if e.created_at else None,
+            "evaluated_at": e.evaluated_at.isoformat() if e.evaluated_at else None,
+        }
+        for e in entries
+    ]
+
+
+
+# ---------------------------------------------------------------------------
+# Boost History — F1 timeline for CustomIgnition
+# ---------------------------------------------------------------------------
+
+@router.post("/boost-history/{username}")
+async def record_boost_history(
+    username: str,
+    body: BoostHistoryIn,
+    db: AsyncSession = Depends(get_db),
+):
+    """Record a boost event (orchestrator-facing, no auth). Idempotent upsert."""
+    result = await db.execute(select(User).where(User.username == username))
+    user = result.scalars().first()
+    if not user:
+        raise HTTPException(status_code=404, detail=f"User {username} not found")
+
+    # Auto-assign boost_number from pool_version if not provided
+    if body.boost_number == 0:
+        body.boost_number = (user.profile_pool_version or 0) + 1
+    if body.pool_version == 0:
+        body.pool_version = (user.profile_pool_version or 0) + 1
+
+    # Upsert on (username, boost_number)
+    existing = await db.execute(
+        select(ProfileBoostHistory).where(
+            ProfileBoostHistory.username == username,
+            ProfileBoostHistory.boost_number == body.boost_number,
+        )
+    )
+    entry = existing.scalars().first()
+    if entry:
+        entry.cumulative_likes = body.cumulative_likes
+        entry.pool_version = body.pool_version
+        entry.precision = body.precision
+        entry.recall = body.recall
+        entry.f1 = body.f1
+        entry.active_profile_json = body.active_profile_json
+        entry.changes_made = body.changes_made
+        entry.pool_candidates_count = body.pool_candidates_count
+        entry.pool_diversity_json = body.pool_diversity
+    else:
+        entry = ProfileBoostHistory(
+            username=username,
+            boost_number=body.boost_number,
+            cumulative_likes=body.cumulative_likes,
+            pool_version=body.pool_version,
+            precision=body.precision,
+            recall=body.recall,
+            f1=body.f1,
+            active_profile_json=body.active_profile_json,
+            changes_made=body.changes_made,
+            pool_candidates_count=body.pool_candidates_count,
+            pool_diversity_json=body.pool_diversity,
+        )
+    db.add(entry)
+    await db.commit()
+    return {"status": "ok", "username": username, "boost_number": body.boost_number}
+
+
+@router.get("/boost-history/{username}")
+async def get_boost_history(username: str, db: AsyncSession = Depends(get_db)):
+    """Get boost history for a user (F1 timeline, dashboard-facing)."""
+    result = await db.execute(
+        select(ProfileBoostHistory)
+        .where(ProfileBoostHistory.username == username)
+        .order_by(ProfileBoostHistory.boost_number)
+    )
+    entries = result.scalars().all()
+    return [
+        {
+            "boost_number": e.boost_number,
+            "cumulative_likes": e.cumulative_likes,
+            "pool_version": e.pool_version,
+            "f1": e.f1,
+            "precision": e.precision,
+            "recall": e.recall,
+            "changes_made": e.changes_made,
+            "pool_candidates_count": e.pool_candidates_count,
+            "pool_diversity": e.pool_diversity_json,
+            "created_at": e.created_at.isoformat() if e.created_at else None,
+        }
+        for e in entries
+    ]

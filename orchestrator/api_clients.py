@@ -6,6 +6,7 @@ Provides robust HTTP clients with retry logic, timeout handling, and consistent 
 
 import logging
 from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import quote
 
 import httpx
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
@@ -194,19 +195,20 @@ class BackendAPIClient(BaseAPIClient):
             self.logger.warning(f"Failed to get search context for {email}: {e}")
             return None, None
 
-    def get_user_papers(self, username: str) -> List[Dict[str, Any]]:
+    def get_user_papers(self, username: str, limit: int = 50) -> List[Dict[str, Any]]:
         """
         Get papers recommended to a user
 
         Args:
             username: User's username/email
+            limit: Maximum number of papers to return (default 50, use higher for profile extraction)
 
         Returns:
             List of paper dictionaries
         """
         try:
             self.logger.debug(f"Fetching papers for user: {username}")
-            papers = self.get(f"/api/digests/recommendations/{username}")
+            papers = self.get(f"/api/digests/recommendations/{username}", params={"limit": limit})
             self.logger.info(f"User {username} has {len(papers)} papers")
             return papers
         except APIResponseError as e:
@@ -507,9 +509,95 @@ class BackendAPIClient(BaseAPIClient):
             True if successful, False otherwise.
         """
         try:
-            self.post(f"/api/users/boost-complete/{username}", json_data={"profile_json": profile_json})
+            self.post(f"/api/users/boost-complete/{quote(username, safe='@')}", json_data={"profile_json": profile_json})
             self.logger.info(f"Profile boost completed for {username}")
             return True
         except Exception as e:
             self.logger.error(f"Failed to complete profile boost for {username}: {e}")
+            return False
+
+    def get_profile_pool(self, username: str) -> List[Dict[str, Any]]:
+        """Fetch existing profile pool entries for a user.
+
+        Args:
+            username: User's username/email
+
+        Returns:
+            List of pool entry dicts with id, profile_json, metrics, etc.
+        """
+        try:
+            entries = self.get(f"/api/users/profile-pool/{quote(username, safe='@')}")
+            self.logger.info(f"Loaded {len(entries)} profile pool entries for {username}")
+            return entries
+        except Exception as e:
+            self.logger.error(f"Failed to fetch profile pool for {username}: {e}")
+            return []
+
+    def save_profile_pool(
+        self,
+        username: str,
+        entries: List[Dict[str, Any]],
+        active_entry_index: int,
+    ) -> bool:
+        """Save the full profile pool and set the active profile.
+
+        Args:
+            username: User's username/email
+            entries: List of pool entry dicts (profile_json, generation, metrics, etc.)
+            active_entry_index: Index into entries list that should be marked active
+
+        Returns:
+            True if successful, False otherwise.
+        """
+        try:
+            self.post(
+                f"/api/users/profile-pool/{quote(username, safe='@')}",
+                json_data={
+                    "entries": entries,
+                    "active_entry_index": active_entry_index,
+                },
+            )
+            self.logger.info(
+                f"Saved profile pool for {username}: {len(entries)} entries, active={active_entry_index}"
+            )
+            return True
+        except Exception as e:
+            self.logger.error(f"Failed to save profile pool for {username}: {e}")
+            return False
+
+    def record_boost_history(
+        self,
+        username: str,
+        boost_number: int,
+        cumulative_likes: int,
+        pool_version: int,
+        metrics: dict,
+        active_profile_json: dict | None = None,
+        changes_made: str | None = None,
+        pool_candidates_count: int = 0,
+        pool_diversity: list | None = None,
+    ) -> bool:
+        """Record a boost event to the append-only history table."""
+        try:
+            self.post(
+                f"/api/users/boost-history/{quote(username, safe='@')}",
+                json_data={
+                    "boost_number": boost_number,
+                    "cumulative_likes": cumulative_likes,
+                    "pool_version": pool_version,
+                    "precision": metrics.get("precision"),
+                    "recall": metrics.get("recall"),
+                    "f1": metrics.get("f1"),
+                    "active_profile_json": active_profile_json,
+                    "changes_made": changes_made,
+                    "pool_candidates_count": pool_candidates_count,
+                    "pool_diversity": pool_diversity,
+                },
+            )
+            self.logger.info(
+                f"Recorded boost history for {username}: boost #{boost_number}, F1={metrics.get('f1')}"
+            )
+            return True
+        except Exception as e:
+            self.logger.error(f"Failed to record boost history for {username}: {e}")
             return False

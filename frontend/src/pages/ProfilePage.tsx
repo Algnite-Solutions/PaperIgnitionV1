@@ -234,6 +234,7 @@ function BoosterSection({ profile }: { profile: UserProfile }) {
   const count = booster?.new_likes_count ?? 0
   const eligible = booster?.eligible ?? false
   const requested = booster?.requested ?? false
+  const poolSize = booster?.pool_size ?? 0
 
   const boost = useMutation({
     mutationFn: triggerBoost,
@@ -247,9 +248,14 @@ function BoosterSection({ profile }: { profile: UserProfile }) {
   return (
     <section className="rounded-xl border border-indigo-200 dark:border-indigo-900/50 bg-gradient-to-br from-indigo-50/60 to-purple-50/60 dark:from-indigo-950/30 dark:to-purple-950/30 p-5">
       <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Customization Booster</h2>
-      <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+      <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
         Like papers you find useful. Every 5 new likes unlocks a boost — AI will analyze your reading patterns and craft a smarter personal profile.
       </p>
+      {poolSize > 0 && (
+        <p className="text-xs text-indigo-600 dark:text-indigo-400 mb-4">
+          Profile optimized from {poolSize} candidates
+        </p>
+      )}
 
       {requested ? (
         <button

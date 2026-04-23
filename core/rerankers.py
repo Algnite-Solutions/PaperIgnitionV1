@@ -114,7 +114,11 @@ class GeminiRerankerPDF:
         with open(prompt_path, "r") as f:
             prompts = yaml.safe_load(f)
             self.rerank_prompt_template = prompts[prompt_key]
-            self.personalized_prompt_template = prompts.get("personalized_ranking_prompt")
+            # If the prompt_key itself is a personalized one, use it as the primary template
+            if prompt_key.startswith("personalized_"):
+                self.personalized_prompt_template = prompts[prompt_key]
+            else:
+                self.personalized_prompt_template = prompts.get("personalized_ranking_prompt")
 
     def rerank(self, query, pdf_paths_dict, retrieve_ids, top_k=5, user_profile=None):
         """Rerank documents using PDF first pages.
@@ -167,34 +171,50 @@ class GeminiRerankerPDF:
 
         contents.append(prompt)
 
-        try:
-            config_params = {}
-            if self.enable_thinking:
-                config_params["thinking_config"] = types.ThinkingConfig(include_thoughts=True)
+        import time
+        max_retries = 4
+        backoff_factor = 3
 
-            response = self.client.models.generate_content(
-                model=self.model_name,
-                config=types.GenerateContentConfig(**config_params) if config_params else None,
-                contents=contents,
-            )
+        for attempt in range(max_retries):
+            try:
+                config_params = {}
+                if self.enable_thinking:
+                    config_params["thinking_config"] = types.ThinkingConfig(include_thoughts=True)
 
-            thought_summary = ""
-            if self.enable_thinking:
-                if hasattr(response, "candidates") and len(response.candidates) > 0:
-                    candidate = response.candidates[0]
-                    if hasattr(candidate, "content") and hasattr(candidate.content, "parts"):
-                        for part in candidate.content.parts:
-                            if hasattr(part, "thought") and part.thought:
-                                thought_summary = part.text
-                                logger.info("Thought summary captured (%d chars)", len(thought_summary))
-                                break
+                response = self.client.models.generate_content(
+                    model=self.model_name,
+                    config=types.GenerateContentConfig(**config_params) if config_params else None,
+                    contents=contents,
+                )
 
-            doc_ids = self._parse_document_ids(response.text)
-            return doc_ids[:top_k], thought_summary
+                thought_summary = ""
+                if self.enable_thinking:
+                    if hasattr(response, "candidates") and len(response.candidates) > 0:
+                        candidate = response.candidates[0]
+                        if hasattr(candidate, "content") and hasattr(candidate.content, "parts"):
+                            for part in candidate.content.parts:
+                                if hasattr(part, "thought") and part.thought:
+                                    thought_summary = part.text
+                                    logger.info("Thought summary captured (%d chars)", len(thought_summary))
+                                    break
 
-        except Exception as e:
-            logger.error("Error during reranking: %s", e)
-            return retrieve_ids[:top_k], ""
+                doc_ids = self._parse_document_ids(response.text)
+                return doc_ids[:top_k], thought_summary
+
+            except Exception as e:
+                error_str = str(e).lower()
+                is_throttle = any(err in error_str for err in ["503", "unavailable", "429", "quota", "too many requests"])
+
+                if is_throttle and attempt < max_retries - 1:
+                    sleep_time = backoff_factor ** attempt
+                    logger.warning("API throttled (503/429), attempt %d/%d. Retrying in %ds...", attempt + 1, max_retries, sleep_time)
+                    time.sleep(sleep_time)
+                    continue
+
+                logger.error("Error during reranking after retries: %s", e)
+                return [], ""
+
+        return retrieve_ids[:top_k], ""
 
     def _parse_document_ids(self, response_text: str) -> list[str]:
         match = re.search(r"<Documents>(.*?)</Documents>", response_text, re.DOTALL)
@@ -269,7 +289,7 @@ class GeminiProfileExtractor:
 
         except Exception as e:
             logger.error("Profile extraction failed: %s", e)
-            return self._default_profile(), {"input_tokens": 0, "thoughts_tokens": 0, "total_tokens": 0}
+            raise e
 
     def _build_pdf_contents(
         self,
@@ -325,6 +345,10 @@ class GeminiProfileExtractor:
         return contents
 
     def _parse_json_response(self, response_text: str) -> dict:
+        """Parse JSON response, handling markdown blocks and preamble/postamble."""
+        json_str = ""
+
+        # 1. Try markdown blocks
         if "```json" in response_text:
             start = response_text.find("```json") + 7
             end = response_text.find("```", start)
@@ -333,11 +357,23 @@ class GeminiProfileExtractor:
             start = response_text.find("```") + 3
             end = response_text.find("```", start)
             json_str = response_text[start:end].strip()
-        else:
+
+        # 2. Try raw braces if no markdown
+        if not json_str:
+            start = response_text.find("{")
+            end = response_text.rfind("}")
+            if start != -1 and end != -1:
+                json_str = response_text[start:end+1].strip()
+
+        if not json_str:
             json_str = response_text.strip()
 
         import json
-        return json.loads(json_str)
+        try:
+            return json.loads(json_str)
+        except Exception as e:
+            logger.error("JSON parse failed. Raw response snippet: %s...", response_text[:500])
+            raise e
 
     def _default_profile(self) -> dict:
         return {

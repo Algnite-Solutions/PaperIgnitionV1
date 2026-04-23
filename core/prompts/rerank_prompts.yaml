@@ -180,6 +180,29 @@ profile_extraction_prompt: |
       "Derive these by asking: Why did the user prioritize the clicked paper over the contextual alternatives?"
     ]
   }}
+  ```
+
+  ### CRITICAL FORMATTING RULES
+  1. Output ONLY the JSON block. No preamble, no post-amble.
+  2. Ensure the JSON is valid and escaped correctly.
+  3. Ensure all keys ("persona_definition", "negative_constraints", "ranking_heuristics") are present.
+
+
+# ============================================================================
+# Initial Pool Variants (Nudges for the extraction prompt)
+# ============================================================================
+initial_pool_variants:
+  default: |
+    
+    **Special Focus:** Extract the core SUBJECT MATTER and TOPICS. What specific research domains (e.g., "LLM Efficiency," "Hardware Accelerators") are they currently focusing on? Identify the nouns of their research world.
+
+  methodology: |
+
+    **Special Focus:** Pay extra attention to METHODOLOGY and ANALYTICAL STYLE. Does this researcher gravitate toward specific experimental setups, rigorous evaluation metrics, or specific analytical frameworks (e.g., "Information Theory," "System-level Benchmarking")? Focus on the "verbs" and "how" of their research.
+
+  topic_breadth: |
+
+    **Special Focus:** Pay extra attention to TOPIC BREADTH and SCOPE. Is this researcher a "Subject Specialist" focused on a narrow niche, or an "Interdisciplinary Scout" looking for cross-domain connections? Analyze the diversity vs. depth of their interest footprint.
 
 # Profile refinement with validation feedback
 profile_refinement_prompt: |
@@ -194,21 +217,21 @@ profile_refinement_prompt: |
   {training_examples}
 
   ## Validation Performance Feedback
-  The current profile achieved:
-  - **Hit@1: {hit_at_1:.1%}** ({hit_count}/{total_val_days} validation days correct)
-  - **Previous iteration Hit@1: {previous_hit_at_1}**
-
-  ### Detailed Performance Breakdown
   {performance_breakdown}
 
   ## Your Task
-  Based on the training data AND validation performance, refine the profile to improve Hit@1.
+  Analyze the validation errors above. Each session shows exactly which papers the profile
+  correctly selected (True Positives), incorrectly selected (False Positives), and missed
+  (False Negatives).
 
-  ### Analysis Questions
-  1. **Success patterns:** On days we got right, what profile aspects helped?
-  2. **Failure patterns:** On days we missed, what did we overlook?
-  3. **Overfitting:** Is the profile too specific to training data?
-  4. **Underfitting:** Are we missing obvious patterns?
+  ### Refinement Strategy
+  1. **Preserve:** Keep profile aspects that consistently produce True Positives.
+  2. **Constrain:** Add or tighten negative_constraints to eliminate False Positives.
+     Look for common themes — e.g., "general benchmarks", "survey papers", "specific subfield".
+  3. **Expand:** Add or broaden ranking_heuristics to capture False Negatives.
+     What pattern did we miss? Add a specific heuristic to catch it next time.
+  4. **Diagnose overfitting:** If precision is high but recall is low, the profile is too narrow.
+     If recall is high but precision is low, the profile is too broad.
 
   ## Output Requirements
   Output ONLY valid JSON:
@@ -217,7 +240,7 @@ profile_refinement_prompt: |
     "persona_definition": "Refined 2-3 sentence description",
     "negative_constraints": ["Updated list (max 5)"],
     "ranking_heuristics": ["Updated list (max 5)"],
-    "changes_made": "Brief explanation of key changes",
+    "changes_made": "Brief explanation of key changes and WHICH errors they address",
     "expected_improvement": "What you expect to improve and why",
     "confidence": "high/medium/low"
   }}

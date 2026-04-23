@@ -1,12 +1,12 @@
 backend_service:
-  host: ${APP_SERVICE_HOST}
+  host: http://localhost:8000
 
 paper_pull:
-  max_workers: 8
-  time_slots_count: 1
+  max_workers: 1
+  time_slots_count: 5
   location: cloud
   count_delay: 2
-  max_papers: 1
+  max_papers: null
   lazy_mode: true  # metadata only on fetch; extract content only for recommended papers
 
 blog_generation:
@@ -27,20 +27,29 @@ models:
     model_id: gemini-3.1-flash-lite-preview
     rate_limits:
       rpm: 15
-      rpd: 1500
+      rpd: 500
       warning_threshold: 0.8
   recommendation:
     model_id: gemini-3.1-flash-lite-preview
     rate_limits:
-      rpm: 10
-      rpd: 1000
+      rpm: 15
+      rpd: 500
       warning_threshold: 0.8
   profile_extraction:
     model_id: gemini-3-flash-preview
 
+profile_pool:
+  enabled: true
+  pool_size: 5
+  max_mutations_per_cycle: 2
+  max_val_days: 7
+  max_papers: 50
+  min_days_for_pool: 10
+  fallback_to_single_profile: true
+
 stages:
   extract_user_profiles: true
-  fetch_daily_papers: false
+  fetch_daily_papers: true
   generate_per_user_blogs: true
 
 job_execution:

@@ -132,6 +132,16 @@ def init_user_database(config_path: str = None, drop_existing: bool = False):
                 ON users(password_reset_token)
             """))
 
+            # Migration: profile pool optimization columns
+            conn.execute(text("""
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_pool_version INTEGER DEFAULT 0
+            """))
+
+            # Migration: breakdown_str on profile_pool
+            conn.execute(text("""
+                ALTER TABLE profile_pool ADD COLUMN IF NOT EXISTS breakdown_str TEXT
+            """))
+
             conn.commit()
 
         # Seed research domains
