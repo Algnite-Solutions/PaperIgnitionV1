@@ -669,17 +669,18 @@ class PaperIgnitionOrchestrator:
             eval_reranker = GeminiRerankerPDF(
                 model_name=model_id,
                 prompt_key="personalized_subset_selection_prompt",
+                enable_thinking=False,
             )
             evaluator = PoolEvaluator(eval_reranker)
             optimizer = ProfilePoolOptimizer(
                 extractor=extractor,
                 evaluator=evaluator,
-                pool_size=pool_config.get("pool_size", 5),
+                pool_size=pool_config.get("pool_size", 3),
                 max_mutations=pool_config.get("max_mutations_per_cycle", 2),
                 model_name=model_id,
             )
             logging.info("Profile pool optimization ENABLED (pool_size=%d, max_val_days=%d)",
-                         pool_config.get("pool_size", 5), max_val_days)
+                         pool_config.get("pool_size", 3), max_val_days)
         else:
             logging.info("Profile pool optimization DISABLED — using single-profile extraction")
 
@@ -702,7 +703,8 @@ class PaperIgnitionOrchestrator:
 
                 all_sessions = []
                 all_paper_ids: set = set()
-                for day, day_papers in sorted(sessions.items()):
+                # Reverse the time order
+                for day, day_papers in sorted(sessions.items(), reverse=True):
                     positives = [p for p in day_papers if p.get("blog_liked") is True]
                     if not positives:
                         continue
@@ -775,6 +777,7 @@ class PaperIgnitionOrchestrator:
                             pdf_paths_dict=pdf_paths_dict,
                             existing_pool=existing_pool if existing_pool else None,
                             max_papers=max_papers,
+                            max_val_days=max_val_days
                         )
 
                         if result["active_profile"] is None:

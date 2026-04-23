@@ -40,10 +40,10 @@ models:
 
 profile_pool:
   enabled: true
-  pool_size: 5
+  pool_size: 3
   max_mutations_per_cycle: 2
-  max_val_days: 7
-  max_papers: 50
+  max_val_days: 5
+  max_papers: 20
   min_days_for_pool: 10
   fallback_to_single_profile: true
 

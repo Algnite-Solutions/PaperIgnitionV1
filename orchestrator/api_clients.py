@@ -6,6 +6,7 @@ Provides robust HTTP clients with retry logic, timeout handling, and consistent 
 
 import logging
 from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import quote
 
 import httpx
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
@@ -508,7 +509,7 @@ class BackendAPIClient(BaseAPIClient):
             True if successful, False otherwise.
         """
         try:
-            self.post(f"/api/users/boost-complete/{username}", json_data={"profile_json": profile_json})
+            self.post(f"/api/users/boost-complete/{quote(username, safe='@')}", json_data={"profile_json": profile_json})
             self.logger.info(f"Profile boost completed for {username}")
             return True
         except Exception as e:
@@ -525,7 +526,7 @@ class BackendAPIClient(BaseAPIClient):
             List of pool entry dicts with id, profile_json, metrics, etc.
         """
         try:
-            entries = self.get(f"/api/users/profile-pool/{username}")
+            entries = self.get(f"/api/users/profile-pool/{quote(username, safe='@')}")
             self.logger.info(f"Loaded {len(entries)} profile pool entries for {username}")
             return entries
         except Exception as e:
@@ -550,7 +551,7 @@ class BackendAPIClient(BaseAPIClient):
         """
         try:
             self.post(
-                f"/api/users/profile-pool/{username}",
+                f"/api/users/profile-pool/{quote(username, safe='@')}",
                 json_data={
                     "entries": entries,
                     "active_entry_index": active_entry_index,
@@ -579,7 +580,7 @@ class BackendAPIClient(BaseAPIClient):
         """Record a boost event to the append-only history table."""
         try:
             self.post(
-                f"/api/users/boost-history/{username}",
+                f"/api/users/boost-history/{quote(username, safe='@')}",
                 json_data={
                     "boost_number": boost_number,
                     "cumulative_likes": cumulative_likes,

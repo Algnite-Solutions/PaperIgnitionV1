@@ -280,7 +280,6 @@ def run_trajectory(
     decay: float | None = None,
     max_boosts: int | None = None,
     debug: bool = False,
-    fast_init: bool = False,
 ) -> list[dict]:
     """Run dual-track trajectory: GEPA pool evolution vs single re-extraction.
 
@@ -360,7 +359,7 @@ def run_trajectory(
             max_papers=len(train_paper_ids),
             performance_breakdown=prev_breakdown,
             previous_f1=prev_gepa_f1,
-            fast_init=fast_init,
+            max_val_days=7,
         )
 
         # We no longer redundantly re-evaluate the active profile since it was perfectly evaluated inside run_optimization
@@ -397,19 +396,20 @@ def run_trajectory(
                 )
                 print(f"  Single extraction: {single_usage.get('total_tokens', 0)} tokens")
 
-                # Evaluate single profile comprehensively
+                # Evaluate single profile comprehensively (atomic loop for KV cache)
                 if evaluator and eval_bins and all_eval_pdfs and single_profile:
-                    eval_result_s = evaluator.evaluate(
-                        single_profile,
-                        eval_bins,
-                        all_eval_pdfs,
-                        max_val_days=len(eval_bins),
-                    )
+                    single_results = []
+                    for bin_item in eval_bins:
+                        res_s = evaluator.evaluate_single_day(single_profile, bin_item, all_eval_pdfs)
+                        if res_s:
+                            single_results.append(res_s)
+
+                    agg_s = evaluator.aggregate_results(single_results)
                     single_metrics = {
-                        "precision": eval_result_s["precision"],
-                        "recall": eval_result_s["recall"],
-                        "f1": eval_result_s["f1"],
-                        "val_days": eval_result_s["val_days_count"],
+                        "precision": agg_s["precision"],
+                        "recall": agg_s["recall"],
+                        "f1": agg_s["f1"],
+                        "val_days": agg_s["val_days_count"],
                     }
                     print(f"  Single eval: P={single_metrics['precision']:.3f} R={single_metrics['recall']:.3f} "
                         f"F1={single_metrics['f1']:.3f} ({single_metrics['val_days']} bins, uniform)")
@@ -458,7 +458,6 @@ def main():
     parser.add_argument("--max-papers", type=int, default=50, help="Max papers for training in --full mode (default: 50)")
     parser.add_argument("--max-val-bins", type=int, default=30, help="Max history bins for evaluation per checkpoint (default: 30)")
     parser.add_argument("--pool-size", type=int, default=3, help="Max pool size (default: 3)")
-    parser.add_argument("--fast-init", action="store_true", help="Skip evaluation for the first boost and arbitrarily pick an active profile")
     parser.add_argument("--full", action="store_true", help="Run full optimization on all data (skip trajectory)")
     parser.add_argument("--no-eval", action="store_true", help="Skip evaluation (extraction only)")
     parser.add_argument("--decay", type=float, default=None, help="Time-decay weight for evaluation (default: 0.85)")
@@ -552,7 +551,6 @@ def main():
                 decay=args.decay,
                 max_boosts=args.max_boosts,
                 debug=args.debug,
-                fast_init=args.fast_init,
             )
 
             # Print final trajectory table

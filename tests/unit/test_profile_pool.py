@@ -129,7 +129,14 @@ class TestPoolEvaluator:
         evaluator = self._make_evaluator({"2026-01-01": ["p1", "p2"]})
         profile = {"persona_definition": "test"}
 
-        result = evaluator.evaluate(profile, sessions, pdf_paths)
+        # Evaluate single profile comprehensively (atomic loop for KV cache)
+        results = []
+        for s in sessions:
+            res = evaluator.evaluate_single_day(profile, s, pdf_paths)
+            if res:
+                results.append(res)
+        result = evaluator.aggregate_results(results)
+
         assert result["precision"] == 1.0
         assert result["recall"] == 1.0
         assert result["f1"] == 1.0
@@ -143,7 +150,13 @@ class TestPoolEvaluator:
         evaluator = self._make_evaluator({"2026-01-01": ["p1"]})
         profile = {"persona_definition": "test"}
 
-        result = evaluator.evaluate(profile, sessions, pdf_paths)
+        results = []
+        for s in sessions:
+            res = evaluator.evaluate_single_day(profile, s, pdf_paths)
+            if res:
+                results.append(res)
+        result = evaluator.aggregate_results(results)
+
         assert result["precision"] == 1.0
         assert result["recall"] == 0.5
         assert result["f1"] == pytest.approx(2 / 3)
@@ -157,7 +170,13 @@ class TestPoolEvaluator:
         evaluator = self._make_evaluator({"2026-01-01": ["p1", "p2"]})
         profile = {"persona_definition": "test"}
 
-        result = evaluator.evaluate(profile, sessions, pdf_paths)
+        results = []
+        for s in sessions:
+            res = evaluator.evaluate_single_day(profile, s, pdf_paths)
+            if res:
+                results.append(res)
+        result = evaluator.aggregate_results(results)
+
         assert result["precision"] == 0.5
         assert result["recall"] == 1.0
 
@@ -173,9 +192,15 @@ class TestPoolEvaluator:
         profile = {"persona_definition": "test"}
 
         # No decay
-        result_uniform = evaluator.evaluate(profile, sessions, pdf_paths, decay=None)
+        results = []
+        for s in sessions:
+            res = evaluator.evaluate_single_day(profile, s, pdf_paths)
+            if res:
+                results.append(res)
+        result_uniform = evaluator.aggregate_results(results, decay=None)
+
         # With decay=0.5: recent weighted more
-        result_decay = evaluator.evaluate(profile, sessions, pdf_paths, decay=0.5)
+        result_decay = evaluator.aggregate_results(results, decay=0.5)
 
         # Uniform: avg P = (1.0 + 0.5) / 2 = 0.75
         assert result_uniform["precision"] == 0.75
@@ -191,7 +216,13 @@ class TestPoolEvaluator:
         evaluator = self._make_evaluator({"2026-01-01": ["p1", "p3"]})
         profile = {"persona_definition": "test"}
 
-        result = evaluator.evaluate(profile, sessions, pdf_paths)
+        results = []
+        for s in sessions:
+            res = evaluator.evaluate_single_day(profile, s, pdf_paths)
+            if res:
+                results.append(res)
+        result = evaluator.aggregate_results(results)
+
         assert "p1" in result["tp_paper_ids"]
         assert "p3" in result["fp_paper_ids"]
         assert "p2" in result["fn_paper_ids"]
@@ -205,7 +236,14 @@ class TestPoolEvaluator:
         ])
         pdf_paths = {}  # no PDFs
         evaluator = self._make_evaluator({})
-        result = evaluator.evaluate({}, sessions, pdf_paths)
+        
+        results = []
+        for s in sessions:
+            res = evaluator.evaluate_single_day({}, s, pdf_paths)
+            if res:
+                results.append(res)
+        result = evaluator.aggregate_results(results)
+
         assert result["f1"] == 0.0
         assert result["val_days_count"] == 0
 
@@ -231,7 +269,6 @@ def _mock_optimizer():
             evaluator=evaluator,
             pool_size=5,
             max_mutations=2,
-            debug=False,
         )
     return optimizer, extractor, evaluator
 
@@ -419,7 +456,6 @@ class TestPoolDynamicEvolution:
                 evaluator=evaluator,
                 pool_size=5,
                 max_mutations=2,
-                debug=False,
             )
         return optimizer, extractor, evaluator
 

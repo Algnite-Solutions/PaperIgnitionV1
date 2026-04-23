@@ -10,7 +10,6 @@ from __future__ import annotations
 import json
 import logging
 import uuid
-from datetime import datetime
 from pathlib import Path
 
 import yaml
@@ -199,29 +198,6 @@ class PoolEvaluator:
             "fn_paper_ids": all_fn,
         }
 
-    def evaluate(
-        self,
-        profile: dict,
-        val_days: list[dict],
-        pdf_paths_dict: dict[str, str],
-        max_val_days: int = 7,
-        decay: float | None = None,
-    ) -> dict:
-        """Evaluate a profile on validation days (single-candidate convenience wrapper). max_val_days meaning bins"""
-        sampled_days = val_days[:max_val_days]
-        logger.info(f"⚡ Starting evaluation of {len(sampled_days)} days...")
-
-        results = []
-        for day_item in sampled_days:
-            try:
-                res = self.evaluate_single_day(profile, day_item, pdf_paths_dict)
-                if res is not None:
-                    results.append(res)
-            except Exception as exc:
-                logger.error(f"Day {day_item['day']} generated an exception: {exc}")
-
-        return self.aggregate_results(results, decay)
-
     def _build_breakdown_str(self, results: list[dict]) -> str:
         """Build rich TP/FP/FN breakdown string for the refinement prompt."""
         parts = []
@@ -335,16 +311,14 @@ class ProfilePoolOptimizer:
         pool_size: int = 5,
         max_mutations: int = 2,
         model_name: str = "gemini-3-flash-preview",
-        debug: bool = False,
-        cache_dir: Path | str | None = None,
+        n_variants: int | None = None,
     ):
         self.extractor = extractor
         self.evaluator = evaluator
         self.pool_size = pool_size
         self.max_mutations = max_mutations
         self.model_name = model_name
-        self.debug = debug
-        self.cache_dir = Path(cache_dir) if cache_dir else None
+        self.n_variants = n_variants
 
         api_key = _get_gemini_key()
         self.client = genai.Client(api_key=api_key)
@@ -357,19 +331,6 @@ class ProfilePoolOptimizer:
         self.extraction_prompt = prompts.get("profile_extraction_prompt", "")
         self.variants = prompts.get("initial_pool_variants", {})
 
-    def _dump_payload(self, call_type: str, payload: dict):
-        """Append Gemini API input payload to mutation_payloads.log as JSON."""
-        try:
-            record = {
-                "timestamp": datetime.now().isoformat(),
-                "type": call_type,
-                "model": self.model_name,
-                **payload,
-            }
-            with open("mutation_payloads.log", "a") as f:
-                f.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
-        except Exception:
-            pass
 
     def run_optimization(
         self,
@@ -380,7 +341,7 @@ class ProfilePoolOptimizer:
         max_papers: int = 50,
         performance_breakdown: str | None = None,
         previous_f1: float | None = None,
-        fast_init: bool = False,
+        max_val_days: int = 7,
     ) -> dict:
         """
         Run the full optimization loop.
@@ -393,7 +354,7 @@ class ProfilePoolOptimizer:
             max_papers: max PDF pages for training
             performance_breakdown: rich TP/FP/FN breakdown from previous evaluation
             previous_f1: F1 score from previous boost's evaluation
-            fast_init: if True, skips evaluation on the first boost and picks an arbitrary active profile
+            max_val_days: max bins to evaluate per candidate for metrics
 
         Returns:
             {pool: [...], active_profile: {...}, active_metrics: {...}, ...}
@@ -403,31 +364,6 @@ class ProfilePoolOptimizer:
             return {"pool": [], "active_profile": None, "active_id": None}
 
         is_first_boost = not existing_pool
-
-        # Pre-evaluate existing pool if entries lack breakdown feedback
-        if existing_pool and not is_first_boost:
-            needs_preeval = any(e.get("breakdown_str") is None for e in existing_pool)
-            if needs_preeval and val_bins:
-                logger.info("Pre-evaluating %d existing candidates (no breakdown_str)", len(existing_pool))
-                pre_candidates = []
-                for e in existing_pool:
-                    pre_candidates.append({
-                        "id": e.get("id"),
-                        "profile_json": e["profile_json"],
-                        "generation": e.get("generation", 0),
-                        "is_active": False,
-                        "precision_val": None, "recall_val": None, "f1_val": None,
-                        "val_days_count": 0,
-                        "parent_id": e.get("parent_id"),
-                        "mutation_note": e.get("mutation_note"),
-                    })
-                pre_candidates = self._evaluate_all(pre_candidates, val_bins, pdf_paths_dict, len(val_bins))
-                # Copy breakdown_str and metrics back to existing_pool
-                for orig, evaluated in zip(existing_pool, pre_candidates):
-                    orig["breakdown_str"] = evaluated.get("breakdown_str")
-                    orig["f1_val"] = evaluated.get("f1_val")
-                    orig["precision_val"] = evaluated.get("precision_val")
-                    orig["recall_val"] = evaluated.get("recall_val")
 
         if is_first_boost:
             logger.info("First boost — initializing pool with 3 candidates")
@@ -440,17 +376,9 @@ class ProfilePoolOptimizer:
                 previous_f1=previous_f1,
             )
 
-        if is_first_boost and fast_init:
-            logger.info("Fast Init enabled: Skipping evaluation for first boost. Selecting arbitrary profile.")
-            for c in candidates:
-                c["precision_val"] = 0.0
-                c["recall_val"] = 0.0
-                c["f1_val"] = 0.0
-                c["val_days_count"] = len(val_bins)
-                c["breakdown_str"] = "Skipped evaluation on first boost (fast-init)."
-        else:
-            logger.info("Evaluating %d candidates on %d standardized bins", len(candidates), len(val_bins))
-            candidates = self._evaluate_all(candidates, val_bins, pdf_paths_dict, len(val_bins))
+
+        logger.info("Evaluating %d candidates on %d standardized bins", len(candidates), max_val_days)
+        candidates = self._evaluate_all(candidates, val_bins, pdf_paths_dict, max_val_days)
 
         # Compute Pareto front and prune
         active = ParetoFront.select_active(candidates)
@@ -491,34 +419,12 @@ class ProfilePoolOptimizer:
         pdf_paths_dict: dict[str, str],
         max_papers: int,
     ) -> list[dict]:
-        """First boost: extract 1 base profile + 2 variants."""
-        # Check cache
-        cache_file = None
-        if self.cache_dir:
-            import hashlib
-            # Create a stable key from paper IDs in the first boost
-            all_pids = []
-            for s in train_sessions:
-                for c in s.get("candidates", []):
-                    all_pids.append(c["paper_id"])
-
-            # Hash the sorted IDs to ensure deterministic key
-            hash_key = hashlib.sha256(",".join(sorted(all_pids)).encode()).hexdigest()[:16]
-            cache_file = self.cache_dir / f"pool_init_{hash_key}.json"
-
-            if cache_file.exists():
-                try:
-                    with open(cache_file, "r") as f:
-                        cached_candidates = json.load(f)
-                    logger.info("Loaded 3 initial candidates from cache: %s", cache_file.name)
-                    return cached_candidates
-                except Exception as e:
-                    logger.warning("Failed to load initial pool cache: %s", e)
-
+        """First boost: extract initial profiles using configured variants."""
         candidates = []
 
-        # If no variants in YAML, fallback to a single default run
-        variant_items = self.variants.items() if self.variants else [("default", "")]
+        variant_items = list(self.variants.items()) if self.variants else [("default", "")]
+        if self.n_variants is not None:
+            variant_items = variant_items[:self.n_variants]
 
         for variant_name, framing_suffix in variant_items:
             profile, usage = self._extract_with_framing(
@@ -541,16 +447,6 @@ class ProfilePoolOptimizer:
                 usage.get("total_tokens", 0),
             )
 
-        # Save to cache
-        if cache_file:
-            try:
-                self.cache_dir.mkdir(parents=True, exist_ok=True)
-                with open(cache_file, "w") as f:
-                    json.dump(candidates, f, indent=2)
-                logger.info("Saved initial pool to cache: %s", cache_file.name)
-            except Exception as e:
-                logger.warning("Failed to save initial pool cache: %s", e)
-
         return candidates
 
     def _extract_with_framing(
@@ -571,24 +467,7 @@ class ProfilePoolOptimizer:
 
         contents.append(prompt_text)
 
-        if self.debug:
-            print(f"\n{'─'*70}")
-            print(f"  [DEBUG] EXTRACTION PROMPT (variant: {framing_suffix or 'default'})")
-            print(f"{'─'*70}")
-            text_parts = [c for c in contents if isinstance(c, str)]
-            pdf_count = len(contents) - len(text_parts)
-            print(f"  PDF pages: {pdf_count}, Text parts: {len(text_parts)}")
-            print(f"  Prompt text (last {len(prompt_text)} chars):")
-            print(prompt_text[:2000])
-            if len(prompt_text) > 2000:
-                print(f"  ... (truncated, {len(prompt_text)} total chars)")
-            print(f"{'─'*70}\n")
-
-        self._dump_payload("extraction", {
-            "variant": framing_suffix or "default",
-            "prompt_text": prompt_text,
-            "num_pdf_pages": sum(1 for c in contents if not isinstance(c, str)),
-        })
+        logger.debug("Extraction prompt (variant: %s), %d chars", framing_suffix or "default", len(prompt_text))
 
         try:
             response = self.client.models.generate_content(
@@ -600,10 +479,7 @@ class ProfilePoolOptimizer:
                 "input_tokens": getattr(response.usage_metadata, "prompt_token_count", 0) or 0,
                 "total_tokens": getattr(response.usage_metadata, "total_token_count", 0) or 0,
             }
-            if self.debug:
-                print(f"  [DEBUG] EXTRACTION RESPONSE ({len(response.text)} chars):")
-                print(response.text[:3000])
-                print()
+            logger.debug("Extraction response: %d chars", len(response.text))
             return profile, usage
         except Exception as e:
             logger.warning("Profile extraction attempt failed: %s — retrying in 30s", e)
@@ -721,24 +597,7 @@ class ProfilePoolOptimizer:
             performance_breakdown=performance_breakdown,
         )
 
-        if self.debug:
-            print(f"\n{'─'*70}")
-            print("  [DEBUG] MUTATION/REFINEMENT PROMPT")
-            print(f"{'─'*70}")
-            print(f"  previous_f1: {prev_f1_str}")
-            print(f"  breakdown length: {len(performance_breakdown)} chars")
-            print(f"  training_summary length: {len(training_summary)} chars")
-            print(f"  Full prompt ({len(prompt)} chars):")
-            print(prompt)
-            print(f"{'─'*70}\n")
-
-        self._dump_payload("mutation", {
-            "current_profile": current_profile,
-            "training_summary": training_summary,
-            "previous_f1": prev_f1_str,
-            "performance_breakdown": performance_breakdown,
-            "full_prompt": prompt,
-        })
+        logger.debug("Mutation prompt: prev_f1=%s, %d chars", prev_f1_str, len(prompt))
 
         max_retries = 3
         for attempt in range(1, max_retries + 1):
@@ -748,10 +607,7 @@ class ProfilePoolOptimizer:
                     contents=prompt,
                 )
                 result = self.extractor._parse_json_response(response.text)
-                if self.debug:
-                    print(f"  [DEBUG] MUTATION RESPONSE ({len(response.text)} chars):")
-                    print(response.text[:3000])
-                    print()
+                logger.debug("Mutation response: %d chars", len(response.text))
                 logger.info("Mutation produced new profile (gen +1)")
                 return result
             except Exception as e:
@@ -828,14 +684,12 @@ class ProfilePoolOptimizer:
         if not evaluable:
             return candidates
 
-        sampled_days = val_sessions[:max_val_days]
-
         # Initialize per-candidate accumulators
         for c in evaluable:
             c["_eval_results"] = []
 
         # Evaluate bin-by-bin across all candidates (KV cache friendly)
-        for day_idx, day_item in enumerate(sampled_days):
+        for day_idx, day_item in enumerate(val_sessions[:max_val_days]):
             for c in evaluable:
                 day_result = self.evaluator.evaluate_single_day(
                     c["profile_json"], day_item, pdf_paths_dict,
@@ -858,16 +712,6 @@ class ProfilePoolOptimizer:
                 f"P={aggregated['precision']:.3f} R={aggregated['recall']:.3f} "
                 f"F1={aggregated['f1']:.3f} ({aggregated['val_days_count']} days)"
             )
-            self._dump_payload("evaluation", {
-                "id": c.get("id"),
-                "generation": c.get("generation", 0),
-                "parent_id": c.get("parent_id"),
-                "precision": aggregated["precision"],
-                "recall": aggregated["recall"],
-                "f1": aggregated["f1"],
-                "val_days_count": aggregated["val_days_count"],
-                "breakdown_str": aggregated.get("breakdown_str", ""),
-            })
 
         return candidates
 
