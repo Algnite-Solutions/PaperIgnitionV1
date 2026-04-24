@@ -97,7 +97,7 @@ The orchestrator runs daily via Docker on a Mac Mini. CI builds and pushes the i
 **CI/CD flow:**
 1. Push to `main` → CI runs lint + tests → `build-orchestrator` job builds multi-arch Docker image (amd64 + arm64)
 2. Image pushed to `ghcr.io/algnite-solutions/paperignition-orchestrator:latest`
-3. Mac Mini cron pulls `:latest` and runs it daily at 8am
+3. Mac Mini cron pulls `:latest` and runs it daily at 1am
 
 **Docker image:** built from `Dockerfile.orchestrator`, CI config in `.github/workflows/ci.yml` (`build-orchestrator` job).
 
@@ -127,8 +127,8 @@ docker run --rm --env-file ~/paperignition/.env \
   ghcr.io/algnite-solutions/paperignition-orchestrator:latest
 
 # 6. Set up daily cron
-crontab -e   # add the line below (runs at 8am local time daily):
-# 0 8 * * * /usr/local/bin/docker pull ghcr.io/algnite-solutions/paperignition-orchestrator:latest >> /Users/leahai/paperignition/orchestrator.log 2>&1 && /usr/local/bin/docker run --rm --env-file /Users/leahai/paperignition/.env ghcr.io/algnite-solutions/paperignition-orchestrator:latest >> /Users/leahai/paperignition/orchestrator.log 2>&1
+crontab -e   # add the line below (runs at 1am local time daily):
+# 0 1 * * * /usr/local/bin/docker pull ghcr.io/algnite-solutions/paperignition-orchestrator:latest >> /Users/leahai/paperignition/orchestrator.log 2>&1 && /usr/local/bin/docker run --rm --env-file /Users/leahai/paperignition/.env ghcr.io/algnite-solutions/paperignition-orchestrator:latest >> /Users/leahai/paperignition/orchestrator.log 2>&1
 crontab -l   # verify
 ```
 

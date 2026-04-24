@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import List, Optional
@@ -27,7 +26,6 @@ from ..models.users import (
     User,
     UserPaperRecommendation,
 )
-from ..utils.index_utils import translate_text_gemini
 
 logger = logging.getLogger(__name__)
 
@@ -204,34 +202,6 @@ async def get_research_domains(db: AsyncSession = Depends(get_db)):
     return research_domains
 
 
-async def translate_and_update_in_background(user_id: int, text_to_translate: str):
-    """Background task: translate text and update database using Gemini."""
-    try:
-        logger.info(f"Starting background translation for user_id={user_id}")
-
-        from ..db_utils import get_database_manager
-
-        english_text = translate_text_gemini(text_to_translate)
-
-        if not english_text:
-            logger.warning(f"Translation result empty for user_id: {user_id}")
-            return
-
-        db_manager = get_database_manager()
-        async with db_manager.get_session() as session:
-            result = await session.execute(select(User).where(User.id == user_id))
-            user = result.scalars().first()
-
-            if user:
-                user.rewrite_interest = english_text
-                await session.commit()
-            else:
-                logger.error(f"Background task: user with id {user_id} not found")
-
-    except Exception as e:
-        logger.exception(f"Background translation task failed: {e}")
-
-
 @router.put("/me/profile", response_model=UserOut)
 async def update_user_profile(
     profile_data: UserProfileUpdate,
@@ -239,13 +209,10 @@ async def update_user_profile(
     db: AsyncSession = Depends(get_db),
 ):
     """Update current user profile"""
-    research_interests_changed = False
-    new_research_interests_text = None
 
     if profile_data.research_interests_text is not None and profile_data.research_interests_text != current_user.research_interests_text:
-        research_interests_changed = True
-        new_research_interests_text = profile_data.research_interests_text
         current_user.research_interests_text = profile_data.research_interests_text
+        current_user.rewrite_interest = profile_data.research_interests_text
 
     if profile_data.email is not None:
         current_user.email = profile_data.email
@@ -272,18 +239,6 @@ async def update_user_profile(
     db.add(current_user)
     await db.commit()
     await db.refresh(current_user)
-
-    if research_interests_changed and new_research_interests_text:
-        try:
-            asyncio.create_task(
-                translate_and_update_in_background(
-                    current_user.id,
-                    new_research_interests_text
-                )
-            )
-            logger.info(f"Created background translation task for user {current_user.username}")
-        except Exception as e:
-            logger.exception(f"Failed to create background translation task: {e}")
 
     research_domain_ids = [d.id for d in current_user.research_domains] if current_user.research_domains else []
     favorite_count = await db.scalar(
