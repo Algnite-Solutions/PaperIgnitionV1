@@ -412,27 +412,37 @@ class PaperIgnitionOrchestrator:
 
     async def blog_generation_for_all_users(self):
         """Generate blog digests for all users based on their interests"""
-        # Only serve users active in the last 30 days (at least 1 viewed recommendation)
         active_days = self.orch_config.get("user_recommendation", {}).get("active_days", 30)
-        active_since = (datetime.now(timezone.utc) - timedelta(days=active_days)).strftime('%Y-%m-%d')
-        all_users = self.backend_client.get_all_users(active_since=active_since)
-        logging.info(f"Found {len(all_users)} active users (viewed in last {active_days} days)")
+        cutoff = datetime.now(timezone.utc) - timedelta(days=active_days)
+        all_users = self.backend_client.get_all_users()
+
+        # Filter to users who logged in within the active window
+        active_users = []
+        for u in all_users:
+            lla = u.get("last_login_at")
+            if lla is None:
+                continue
+            login_time = datetime.fromisoformat(lla.replace("Z", "+00:00"))
+            if login_time >= cutoff:
+                active_users.append(u)
+
+        logging.info(f"Found {len(active_users)} active users (logged in last {active_days} days)")
 
         # Always include Demo User
-        active_usernames = {u.get("username") for u in all_users}
+        active_usernames = {u.get("username") for u in active_users}
         demo_username = self.orch_config.get("user_recommendation", {}).get("always_include_user", "Demo User")
         if demo_username and demo_username not in active_usernames:
             try:
                 demo_user = self.backend_client.get_user_by_email(demo_username)
-                all_users.append(demo_user)
+                active_users.append(demo_user)
                 logging.info(f"Added always-include user: {demo_username}")
             except Exception as e:
                 logging.warning(f"Could not fetch always-include user '{demo_username}': {e}")
 
-        logging.info(f"Starting recommendation for {len(all_users)} users")
+        logging.info(f"Starting recommendation for {len(active_users)} users")
         if self.user_filter:
-            all_users = [u for u in all_users if u.get("username") in self.user_filter]
-            logging.info(f"Filtered to {len(all_users)} users: {self.user_filter}")
+            active_users = [u for u in active_users if u.get("username") in self.user_filter]
+            logging.info(f"Filtered to {len(active_users)} users: {self.user_filter}")
 
         customized_rerank = self.orch_config["user_recommendation"].get("customized_recommendation", False)
         if customized_rerank:
@@ -445,7 +455,7 @@ class PaperIgnitionOrchestrator:
         else:
             customized_reranker = None
 
-        for user in all_users:
+        for user in active_users:
             username = user.get("username")
             if username == "BlogBot@gmail.com":
                 continue
