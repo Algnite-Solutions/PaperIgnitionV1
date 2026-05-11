@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -143,6 +143,7 @@ async def get_current_user_info(current_user: User = Depends(get_current_user), 
         "username": current_user.username,
         "email": current_user.email,
         "last_login_at": current_user.last_login_at.isoformat() if current_user.last_login_at else None,
+        "is_active": current_user.is_active,
         "is_verified": current_user.is_verified,
         "research_interests_text": current_user.research_interests_text,
         "rewrite_interest": current_user.rewrite_interest,
@@ -190,6 +191,7 @@ async def update_interests(
         "username": user.username,
         "email": user.email,
         "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
+        "is_active": user.is_active,
         "research_interests_text": user.research_interests_text,
         "research_domain_ids": updated_domain_ids
     }
@@ -263,6 +265,7 @@ async def update_user_profile(
         "username": current_user.username,
         "email": current_user.email,
         "last_login_at": current_user.last_login_at.isoformat() if current_user.last_login_at else None,
+        "is_active": current_user.is_active,
         "is_verified": current_user.is_verified,
         "research_interests_text": current_user.research_interests_text,
         "rewrite_interest": current_user.rewrite_interest,
@@ -279,9 +282,18 @@ async def update_user_profile(
 
 
 @router.get("/all", response_model=List[UserOut])
-async def get_all_users_info(db: AsyncSession = Depends(get_db)):
-    """Get all users info."""
-    stmt = select(User)
+async def get_all_users_info(active_since: Optional[str] = None, db: AsyncSession = Depends(get_db)):
+    """Get all users info, optionally filtered by recent activity.
+
+    Args:
+        active_since: ISO date string (e.g. '2026-04-10'). If provided, only returns users
+            with last_login_at >= this date.
+    """
+    if active_since:
+        cutoff = datetime.fromisoformat(active_since)
+        stmt = select(User).where(User.last_login_at >= cutoff)
+    else:
+        stmt = select(User)
 
     result = await db.execute(stmt)
     users = result.scalars().all()
@@ -294,6 +306,7 @@ async def get_all_users_info(db: AsyncSession = Depends(get_db)):
             "username": user.username,
             "email": user.email,
             "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
+            "is_active": user.is_active,
             "research_interests_text": user.research_interests_text,
             "rewrite_interest": user.rewrite_interest,
             "profile_json": user.profile_json,
@@ -325,6 +338,7 @@ async def get_user_by_email(
         "username": user.username,
         "email": user.email,
         "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
+        "is_active": user.is_active,
         "research_interests_text": user.research_interests_text,
         "rewrite_interest": user.rewrite_interest,
         "profile_json": user.profile_json,
@@ -370,6 +384,7 @@ async def trigger_profile_boost(
         "username": current_user.username,
         "email": current_user.email,
         "last_login_at": current_user.last_login_at.isoformat() if current_user.last_login_at else None,
+        "is_active": current_user.is_active,
         "is_verified": current_user.is_verified,
         "research_interests_text": current_user.research_interests_text,
         "rewrite_interest": current_user.rewrite_interest,

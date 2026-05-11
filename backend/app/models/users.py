@@ -33,6 +33,7 @@ class User(Base):
     push_frequency = Column(String(20), default="daily")  # daily, weekly
 
     # 元数据
+    is_active = Column(Boolean, default=True)
     is_verified = Column(Boolean, default=False)
     last_login_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

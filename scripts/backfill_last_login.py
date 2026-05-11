@@ -1,7 +1,9 @@
-"""Add last_login_at column and backfill from created_at.
+"""Add last_login_at column and backfill from GREATEST(created_at, last viewed recommendation).
+
+Safe to run anytime — only ADDs, never drops. Idempotent.
 
 Usage:
-    # Against production (reads ~/paperignition/.env)
+    # Against production (reads .env for DB credentials)
     python scripts/backfill_last_login.py
 
     # Dry run (print affected users without updating)
@@ -10,11 +12,10 @@ Usage:
 import argparse
 import asyncio
 import os
-import sys
 
 from dotenv import load_dotenv
 
-load_dotenv("/Users/leahai/paperignition/.env")
+load_dotenv()
 
 
 async def migrate(dry_run: bool = False):
@@ -31,13 +32,7 @@ async def migrate(dry_run: bool = False):
     engine = create_async_engine(url)
 
     async with engine.begin() as conn:
-        # 1. Drop is_active column
-        print("Dropping is_active column...")
-        if not dry_run:
-            await conn.execute(text("ALTER TABLE users DROP COLUMN IF EXISTS is_active"))
-        print("  Done." if not dry_run else "  [DRY RUN] skipped.")
-
-        # 2. Add last_login_at column if not exists
+        # 1. Add last_login_at column if not exists (idempotent)
         print("Adding last_login_at column...")
         if not dry_run:
             await conn.execute(text(
@@ -46,27 +41,28 @@ async def migrate(dry_run: bool = False):
         print("  Done." if not dry_run else "  [DRY RUN] skipped.")
 
         if dry_run:
-            print("\n[DRY RUN] Would backfill last_login_at = created_at for all NULL rows.")
+            print("\n[DRY RUN] Would backfill last_login_at = GREATEST(created_at, last viewed recommendation).")
             return
 
-        # 3. Backfill: set last_login_at = created_at where NULL
-        result = await conn.execute(text(
-            "SELECT id, username, email, created_at FROM users WHERE last_login_at IS NULL"
-        ))
-        rows = result.fetchall()
-
-        if not rows:
-            print("No users need backfill.")
-            return
-
-        print(f"\n{len(rows)} users with NULL last_login_at:")
-        for r in rows:
-            print(f"  id={r[0]}  username={r[1]}  email={r[2]}  created_at={r[3]}")
-
-        result = await conn.execute(text(
-            "UPDATE users SET last_login_at = created_at WHERE last_login_at IS NULL"
-        ))
-        print(f"\nBackfilled {result.rowcount} users: last_login_at = created_at.")
+        # 2. Backfill: set last_login_at to the more recent of created_at or last viewed recommendation
+        result = await conn.execute(text("""
+            UPDATE users u
+            SET last_login_at = GREATEST(
+                u.created_at,
+                COALESCE((
+                    SELECT MAX(pr.recommendation_date)
+                    FROM paper_recommendations pr
+                    WHERE pr.username = u.username AND pr.viewed = true
+                ), u.created_at)
+            )
+            WHERE u.last_login_at IS NULL
+               OR u.last_login_at < COALESCE((
+                    SELECT MAX(pr.recommendation_date)
+                    FROM paper_recommendations pr
+                    WHERE pr.username = u.username AND pr.viewed = true
+                ), u.created_at)
+        """))
+        print(f"\nBackfilled {result.rowcount} users: last_login_at = GREATEST(created_at, last_viewed).")
 
 
 if __name__ == "__main__":
