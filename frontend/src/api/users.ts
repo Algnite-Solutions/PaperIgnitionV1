@@ -13,6 +13,7 @@ export interface UserProfile {
   username: string
   email: string
   is_active: boolean
+  last_login_at: string | null
   is_verified: boolean
   research_interests_text: string | null
   rewrite_interest: string | null

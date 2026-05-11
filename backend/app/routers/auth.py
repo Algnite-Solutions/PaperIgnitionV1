@@ -37,6 +37,8 @@ async def register_email(
     if db_user:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
     created_user = await crud_user.create_user_email(db=db, user_in=user_in)
+    created_user.last_login_at = datetime.now(timezone.utc)
+    await db.commit()
 
     # Send verification email (background, non-blocking)
     token = crud_user.generate_token()
@@ -68,6 +70,8 @@ async def login_email(user_in: auth_schemas.UserLoginEmail, db: AsyncSession = D
             headers={"WWW-Authenticate": "Bearer"},
         )
     access_token = create_access_token(data={"sub": user.email})
+    user.last_login_at = datetime.now(timezone.utc)
+    await db.commit()
     return {
         "access_token": access_token,
         "token_type": "bearer",

@@ -412,11 +412,10 @@ class PaperIgnitionOrchestrator:
 
     async def blog_generation_for_all_users(self):
         """Generate blog digests for all users based on their interests"""
-        # Only serve users active in the last 30 days (at least 1 viewed recommendation)
         active_days = self.orch_config.get("user_recommendation", {}).get("active_days", 30)
         active_since = (datetime.now(timezone.utc) - timedelta(days=active_days)).strftime('%Y-%m-%d')
         all_users = self.backend_client.get_all_users(active_since=active_since)
-        logging.info(f"Found {len(all_users)} active users (viewed in last {active_days} days)")
+        logging.info(f"Found {len(all_users)} active users (logged in last {active_days} days)")
 
         # Always include Demo User
         active_usernames = {u.get("username") for u in all_users}

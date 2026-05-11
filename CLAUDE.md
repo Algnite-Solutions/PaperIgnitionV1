@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-PaperIgnitionV1 is a standalone AI-powered academic paper recommendation system. It fetches papers from arXiv, indexes them with pgvector for semantic search, generates blog summaries using Gemini LLMs, and delivers personalized recommendations. The system supports an H5 web frontend.
+PaperIgnitionV1 is a standalone AI-powered academic paper recommendation system (package: `paperignition` v2.0.0). It fetches papers from arXiv, indexes them with pgvector for semantic search, generates blog summaries using Gemini LLMs, and delivers personalized recommendations via a React SPA frontend.
 
 **Key difference from PaperIgnition(Beta):** V1 is fully standalone — no external `AIgnite` package dependency. All needed functionality is inlined in the `core/` package.
 
@@ -42,8 +42,17 @@ PaperIgnitionV1/
 │   ├── rate_limiter.py      # Thread-safe rate limiting + token tracking
 │   ├── utils.py             # DocSet JSON serialization helpers
 │   └── configs/             # development.yaml, production.yaml
-├── beta_frontend/           # H5 web interface (HTML/JS + Nginx)
-├── scripts/                 # init_all_tables.py, reset_password.py
+├── frontend/                # React + Vite + TypeScript SPA (replaces beta_frontend)
+│   ├── src/
+│   │   ├── api/             # Backend API calls (auth, digests, favorites, search, users)
+│   │   ├── stores/          # Zustand stores (auth + theme, persisted to localStorage)
+│   │   ├── hooks/           # TanStack Query hooks (recommendations, blog, favorites)
+│   │   ├── components/      # layout/, paper/, auth/, ui/
+│   │   ├── pages/           # Route-level page components (Feed, BlogReader, Search, etc.)
+│   │   └── styles/          # Tailwind globals, KaTeX/highlight.js overrides
+│   └── vite.config.ts       # Proxies /api/* to localhost:8000 (or VITE_API_TARGET)
+├── beta_frontend/           # Legacy H5 web interface (HTML/JS + Nginx) — being replaced
+├── scripts/                 # init_all_tables.py, reset_password.py, profile_optimizer.py
 └── tests/                   # unit/, integration/
 ```
 
@@ -245,6 +254,18 @@ docker stop pi-test-pg && docker rm pi-test-pg
 
 **Test coverage:** auth, papers (pgvector similarity search + BM25 full-text search), favorites, digests, orchestrator storage (RDSDBManager), domains, and health check. External APIs (DashScope) are mocked; the database is never mocked.
 
+### Frontend (React + Vite)
+
+```bash
+cd frontend
+npm install
+npm run dev        # http://localhost:5173, proxies /api to localhost:8000
+npm run build      # Production build → dist/
+npm run lint       # ESLint
+```
+
+Requires backend on port 8000. To proxy to production: `VITE_API_TARGET=https://www.paperignition.com npm run dev`.
+
 ### Running Orchestrator
 
 ```bash
@@ -329,6 +350,23 @@ FastAPI with async SQLAlchemy + asyncpg. Two database managers:
 
 **Token tracking**: Automatic per-user token usage logging after API calls.
 
+### Frontend (`frontend/`)
+
+React 19 + Vite 6 + TypeScript SPA replacing the legacy `beta_frontend/`.
+
+**Tech stack:** Tailwind CSS v4, Zustand (state), TanStack Query v5 (data fetching + caching), react-markdown + remark-math + rehype-katex (math rendering), Framer Motion (animations).
+
+**Pages:** Feed (`/`), Blog Reader (`/paper/:id`), Search (`/search`), Favorites (`/favorites`), Profile (`/profile`), Login/Register.
+
+**Key patterns:**
+- API calls in `src/api/` — each domain (auth, digests, favorites, search, users) has its own module
+- TanStack Query hooks in `src/hooks/` — handles caching, optimistic updates
+- Zustand stores in `src/stores/` — auth token + theme, persisted to localStorage
+- Vite proxies `/api/*`, `/find_similar`, `/paper_content`, `/get_metadata` to backend
+
+**Dev:** Vite serves SPA and proxies API requests — no Nginx needed.
+**Prod:** `npm run build` → `dist/` served by Nginx, which proxies `/api/*` to uvicorn.
+
 ### API Endpoints
 
 **Auth:**
@@ -367,5 +405,5 @@ FastAPI with async SQLAlchemy + asyncpg. Two database managers:
 - **PostgreSQL with pgvector** is required for the paper database. Run `CREATE EXTENSION IF NOT EXISTS vector` if needed.
 - **Aliyun RDS** can be disabled (`aliyun_rds.enabled: false`) for local dev — paper search won't work but user auth will.
 - Images are served from `http://oss.paperignition.com/imgs/` — markdown image paths are rewritten by the blog content endpoints.
-- **Ruff config**: target Python 3.11, line length 120, selects E/F/I/W rules, ignores E501. Config is in `pyproject.toml`.
+- **Ruff config**: target Python 3.11, line length 120, selects E/F/I/W rules, ignores E501 and E402. Config is in `pyproject.toml`.
 - **Requires Python ≥ 3.11.**
