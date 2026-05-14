@@ -454,7 +454,7 @@ def main():
     parser = argparse.ArgumentParser(description="Standalone profile pool optimizer (no DB writes)")
     parser.add_argument("--user", required=True, help="Username to optimize profile for")
     parser.add_argument("--model", default="gemini-3-flash-preview", help="Gemini model (default: gemini-3-flash-preview)")
-    parser.add_argument("--eval-model", default="gemini-3.1-flash-lite-preview", help="Gemini model used for evaluation (default: gemini-3.1-flash-lite-preview)")
+    parser.add_argument("--eval-model", default="gemini-3.1-flash-lite", help="Gemini model used for evaluation (default: gemini-3.1-flash-lite)")
     parser.add_argument("--max-papers", type=int, default=50, help="Max papers for training in --full mode (default: 50)")
     parser.add_argument("--max-val-bins", type=int, default=30, help="Max history bins for evaluation per checkpoint (default: 30)")
     parser.add_argument("--pool-size", type=int, default=3, help="Max pool size (default: 3)")

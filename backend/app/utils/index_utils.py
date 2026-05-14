@@ -55,7 +55,7 @@ def translate_text_gemini(text: str, api_key: str | None = None) -> str | None:
     try:
         client = genai.Client(api_key=api_key)
         response = client.models.generate_content(
-            model="gemini-3.1-flash-lite-preview",
+            model="gemini-3.1-flash-lite",
             contents=f"{_TRANSLATE_PROMPT}\n\nUser input:\n{text}",
         )
         return response.text.strip() if response.text else None
