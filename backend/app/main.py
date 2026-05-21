@@ -46,8 +46,9 @@ async def lifespan(app: FastAPI):
     jwt_key = os.environ.get("JWT_SECRET_KEY", "")
     if not jwt_key or jwt_key in ("aignite_secret_key_change_in_production", ""):
         raise RuntimeError(
-            "JWT_SECRET_KEY must be set to a non-empty value. "
-            "Generate one: python -c \"import secrets; print(secrets.token_urlsafe(32))\""
+            "JWT_SECRET_KEY must be set to a non-empty value.\n"
+            "  For local dev: export PAPERIGNITION_LOCAL_MODE=true (loads ci_config.yaml)\n"
+            "  For prod: python -c \"import secrets; print(secrets.token_urlsafe(32))\""
         )
     local_mode = os.getenv("PAPERIGNITION_LOCAL_MODE", "false").lower() == "true"
     if not local_mode and jwt_key == "ci-test-secret-key":
@@ -122,7 +123,7 @@ app.include_router(digests.router, prefix="/api")
 app.include_router(favorites.router, prefix="/api")
 
 # Compatibility routes
-from backend.app.auth.utils import get_current_user
+from backend.app.auth.utils import get_current_user  # noqa: E402 (after app creation to avoid circular import)
 from backend.app.routers.papers import (
     FindSimilarRequest,
     FindSimilarResponse,
