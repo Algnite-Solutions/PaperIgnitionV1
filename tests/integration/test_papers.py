@@ -39,7 +39,7 @@ class TestPapers:
         assert "Author A" in data["authors"]
         assert "cs.AI" in data["categories"]
 
-    async def test_find_similar_with_mock_embedding(self, client, paper_db_conn, mock_dashscope):
+    async def test_find_similar_with_mock_embedding(self, client, paper_db_conn, mock_dashscope, auth_headers):
         """
         Seed paper_embeddings with known vectors, mock DashScope,
         POST /api/papers/find_similar, verify pgvector cosine similarity works.
@@ -90,6 +90,7 @@ class TestPapers:
         resp = await client.post(
             "/api/papers/find_similar",
             json={"query": "attention transformers", "top_k": 10, "similarity_cutoff": -1.0},
+            headers=auth_headers,
         )
         assert resp.status_code == 200, f"find_similar failed: {resp.text}"
         data = resp.json()
@@ -106,7 +107,7 @@ class TestPapers:
         resp = await client.get("/api/papers/content/nonexistent_doc_id")
         assert resp.status_code == 404
 
-    async def test_find_similar_bm25(self, client, paper_db_conn):
+    async def test_find_similar_bm25(self, client, paper_db_conn, auth_headers):
         """
         Test BM25 full-text search endpoint.
         Seeds papers with known content, POST /api/papers/find_similar_bm25,
@@ -151,6 +152,7 @@ class TestPapers:
         resp = await client.post(
             "/api/papers/find_similar_bm25",
             json={"query": "transformer attention", "top_k": 10},
+            headers=auth_headers,
         )
         assert resp.status_code == 200, f"BM25 search failed: {resp.text}"
         data = resp.json()
@@ -172,6 +174,7 @@ class TestPapers:
         resp = await client.post(
             "/api/papers/find_similar_bm25",
             json={"query": "convolutional neural", "top_k": 10},
+            headers=auth_headers,
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -186,6 +189,7 @@ class TestPapers:
                 "top_k": 10,
                 "filters": {"exclude": {"doc_ids": ["bm25_001"]}},
             },
+            headers=auth_headers,
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -198,10 +202,11 @@ class TestPapers:
         resp = await client.post(
             "/api/papers/find_similar_bm25",
             json={"query": "   ", "top_k": 10},
+            headers=auth_headers,
         )
         assert resp.status_code == 400, "Empty query should return 400"
 
-    async def test_find_similar_bm25_no_results(self, client, paper_db_conn):
+    async def test_find_similar_bm25_no_results(self, client, paper_db_conn, auth_headers):
         """
         Test BM25 endpoint when no papers match the query.
         """
@@ -220,13 +225,14 @@ class TestPapers:
         resp = await client.post(
             "/api/papers/find_similar_bm25",
             json={"query": "medieval history castles", "top_k": 10},
+            headers=auth_headers,
         )
         assert resp.status_code == 200
         data = resp.json()
         assert data["total"] == 0, "Expected no results for unrelated query"
         assert len(data["results"]) == 0
 
-    async def test_find_similar_bm25_with_date_filter(self, client, paper_db_conn):
+    async def test_find_similar_bm25_with_date_filter(self, client, paper_db_conn, auth_headers):
         """
         Test BM25 endpoint with date range filter.
         """
@@ -277,6 +283,7 @@ class TestPapers:
                     }
                 },
             },
+            headers=auth_headers,
         )
         assert resp.status_code == 200
         data = resp.json()

@@ -16,17 +16,13 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..auth.utils import get_current_user
 from ..db_utils import get_index_service_url, get_paper_db
+from ..limiter import limiter
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/papers", tags=["papers"])
-
-# Rate limiter (initialized in main.py, referenced here)
-from slowapi import Limiter
-from slowapi.util import get_remote_address
-
-limiter = Limiter(key_func=get_remote_address)
 
 
 # ==================== Find Similar Models ====================
@@ -144,7 +140,8 @@ def get_embedding_client(request: Request) -> BackendEmbeddingClient:
 async def find_similar_papers(
     request_body: FindSimilarRequest,
     request: Request,
-    db: AsyncSession = Depends(get_paper_db)
+    db: AsyncSession = Depends(get_paper_db),
+    current_user=Depends(get_current_user),
 ):
     """
     Semantic similarity search using pgvector.
@@ -268,7 +265,8 @@ async def find_similar_papers(
 async def find_similar_papers_bm25(
     request: Request,
     request_body: FindSimilarRequest,
-    db: AsyncSession = Depends(get_paper_db)
+    db: AsyncSession = Depends(get_paper_db),
+    current_user=Depends(get_current_user),
 ):
     """
     Full-text similarity search using BM25 (PostgreSQL ts_rank).

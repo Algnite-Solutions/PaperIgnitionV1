@@ -109,11 +109,11 @@ async def get_current_user(
 
 
 async def verify_service_token(
-    x_service_token: str = Header(..., alias="X-Service-Token"),
+    x_service_token: Optional[str] = Header(None, alias="X-Service-Token"),
 ):
     """Verify that the request comes from a trusted service (orchestrator)."""
     expected = os.environ.get("SERVICE_TOKEN", "")
-    if not expected or not hmac.compare_digest(x_service_token, expected):
+    if not x_service_token or not expected or not hmac.compare_digest(x_service_token, expected):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid service token",
