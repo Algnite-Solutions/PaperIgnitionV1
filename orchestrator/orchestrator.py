@@ -144,7 +144,8 @@ class PaperIgnitionOrchestrator:
         import re as _re
         host = self.backend_api_url.split("//")[-1].split("/")[0].split(":")[0]
         verify_ssl = not bool(_re.match(r"^\d+\.\d+\.\d+\.\d+$", host))
-        self.backend_client = BackendAPIClient(self.backend_api_url, verify_ssl=verify_ssl)
+        service_token = os.environ.get("SERVICE_TOKEN", "")
+        self.backend_client = BackendAPIClient(self.backend_api_url, verify_ssl=verify_ssl, service_token=service_token)
 
         # Initialize paper pull service with config
         base_dir = os.path.join(self.project_root, "orchestrator")

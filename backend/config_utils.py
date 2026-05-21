@@ -72,6 +72,8 @@ def load_config(
             "aliyun_rds": full_config.get("aliyun_rds", {}),
             "aliyun_oss": full_config.get("aliyun_oss", {}),
             "smtp": full_config.get("smtp", {}),
+            "security": full_config.get("security", {}),
+            "cors": full_config.get("cors", {}),
         }
 
         dashscope_config = config.get("dashscope", {})

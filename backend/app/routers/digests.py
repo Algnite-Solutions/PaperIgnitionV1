@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from ..auth.utils import get_current_user
+from ..auth.utils import get_current_user, verify_service_token
 from ..db_utils import get_db
 from ..models.papers import FeedbackRequest, PaperBase, PaperRecommendation, RetrieveResultSave
 from ..models.users import User, UserPaperRecommendation, UserRetrieveResult
@@ -26,7 +26,12 @@ router = APIRouter(prefix="/digests", tags=["digests"])
 # ==================== Recommendations ====================
 
 @router.get("/recommendations/{username}", response_model=List[PaperBase])
-async def get_recommended_papers_info(username: str, limit: int = 50, db: AsyncSession = Depends(get_db)):
+async def get_recommended_papers_info(
+    username: str,
+    limit: int = 50,
+    db: AsyncSession = Depends(get_db),
+    _svc: bool = Depends(verify_service_token),
+):
     """Get recommended papers for a user"""
     result = await db.execute(
         select(
@@ -87,7 +92,8 @@ async def get_recommended_papers_info(username: str, limit: int = 50, db: AsyncS
 async def update_paper_feedback(
     paper_id: str,
     feedback: FeedbackRequest,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    _svc: bool = Depends(verify_service_token),
 ):
     """Update blog feedback (like/dislike) for a paper recommendation"""
     try:
@@ -179,7 +185,12 @@ async def _process_markdown_images(markdown_content: str) -> str:
 
 
 @router.get("/blog_content/{paper_id}/{username}")
-async def get_blog_content(paper_id: str, username: str, db: AsyncSession = Depends(get_db)):
+async def get_blog_content(
+    paper_id: str,
+    username: str,
+    db: AsyncSession = Depends(get_db),
+    _svc: bool = Depends(verify_service_token),
+):
     """Get blog markdown content for a paper recommendation by paper_id and username"""
     logger.info(f"Fetching blog content for paper_id: {paper_id}, username: {username}")
 
@@ -205,7 +216,12 @@ async def get_blog_content(paper_id: str, username: str, db: AsyncSession = Depe
 # ==================== Recommend ====================
 
 @router.post("/recommend", status_code=status.HTTP_201_CREATED)
-async def add_paper_recommendation(username: str, rec: PaperRecommendation, db: AsyncSession = Depends(get_db)):
+async def add_paper_recommendation(
+    username: str,
+    rec: PaperRecommendation,
+    db: AsyncSession = Depends(get_db),
+    _svc: bool = Depends(verify_service_token),
+):
     """Add or update a paper recommendation for a user"""
     try:
         user_result = await db.execute(
@@ -275,7 +291,8 @@ async def add_paper_recommendation(username: str, rec: PaperRecommendation, db: 
 @router.post("/retrieve_results/save", status_code=status.HTTP_201_CREATED)
 async def save_retrieve_result(
     data: RetrieveResultSave,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    _svc: bool = Depends(verify_service_token),
 ):
     """Save user retrieve results for reranking debug"""
     try:

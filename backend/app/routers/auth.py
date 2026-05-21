@@ -1,11 +1,11 @@
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import schemas as auth_schemas
-from ..auth.utils import create_access_token, get_current_user, get_password_hash, verify_password
+from ..auth.utils import create_access_token, get_current_user, get_password_hash, verify_password, verify_service_token
 from ..crud import user as crud_user
 from ..db_utils import get_db
 from ..models.users import User
@@ -161,10 +161,12 @@ async def resend_verification(
     return {"message": "Verification email sent"}
 
 
-@router.delete("/users/{email:path}")
-async def delete_user(email: str, db: AsyncSession = Depends(get_db), x_test_mode: str = Header(None)):
-    if x_test_mode != "true":
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required or test mode not enabled")
+@router.delete("/users/{email:path}", include_in_schema=False)
+async def delete_user(
+    email: str,
+    db: AsyncSession = Depends(get_db),
+    _svc: bool = Depends(verify_service_token),
+):
     deleted = await crud_user.delete_user_by_email(db, email)
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"User with email {email} not found")

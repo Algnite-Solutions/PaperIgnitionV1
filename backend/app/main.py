@@ -1,8 +1,11 @@
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.db_utils import DatabaseManager, get_db, set_database_manager, set_paper_database_manager
@@ -21,6 +24,37 @@ async def lifespan(app: FastAPI):
 
     config = load_config(config_path)
     db_config = config.get("USER_DB", {})
+
+    # Resolve security secrets from config into environment (so auth/utils.py can read them)
+    security_config = config.get("security", {})
+    if not os.environ.get("JWT_SECRET_KEY"):
+        jwt_key = security_config.get("jwt_secret_key", "")
+        if jwt_key:
+            os.environ["JWT_SECRET_KEY"] = jwt_key
+    if not os.environ.get("SERVICE_TOKEN"):
+        svc_token = security_config.get("service_token", "")
+        if svc_token:
+            os.environ["SERVICE_TOKEN"] = svc_token
+
+    # Update the module-level SECRET_KEY in auth/utils.py now that env is set
+    from backend.app.auth import utils as auth_utils
+    auth_utils.SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "")
+
+    # Startup validation: reject known-weak or missing secrets in production
+    local_mode = os.getenv("PAPERIGNITION_LOCAL_MODE", "false").lower() == "true"
+    if not local_mode:
+        jwt_key = os.environ.get("JWT_SECRET_KEY", "")
+        if not jwt_key or jwt_key in ("ci-test-secret-key", "aignite_secret_key_change_in_production"):
+            raise RuntimeError(
+                "JWT_SECRET_KEY must be set to a secure value in production. "
+                "Generate one: python -c \"import secrets; print(secrets.token_urlsafe(32))\""
+            )
+        svc_token = os.environ.get("SERVICE_TOKEN", "")
+        if not svc_token:
+            import logging
+            logging.getLogger(__name__).warning(
+                "SERVICE_TOKEN not set — orchestrator-facing endpoints will reject all requests"
+            )
 
     db_manager = DatabaseManager(db_config=db_config)
     await db_manager.initialize()
@@ -54,9 +88,21 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="PaperIgnition API", lifespan=lifespan)
 
+# Rate limiting
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# CORS — explicit allow-list from env var, dev-mode fallback
+_cors_str = os.environ.get("CORS_ALLOW_ORIGINS", "")
+if _cors_str:
+    _cors_origins = [o.strip() for o in _cors_str.split(",") if o.strip()]
+else:
+    _cors_origins = ["http://localhost:5173", "http://localhost:3000"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -69,8 +115,6 @@ app.include_router(digests.router, prefix="/api")
 app.include_router(favorites.router, prefix="/api")
 
 # Compatibility routes
-from fastapi import Request
-
 from backend.app.routers.papers import (
     FindSimilarRequest,
     FindSimilarResponse,
@@ -82,6 +126,7 @@ from backend.app.routers.papers import (
 
 
 @app.post("/find_similar/", response_model=FindSimilarResponse)
+@limiter.limit("20/minute")
 async def compat_find_similar(request_body: FindSimilarRequest, request: Request, db: AsyncSession = Depends(get_paper_db)):
     return await find_similar_papers(request_body, request, db)
 

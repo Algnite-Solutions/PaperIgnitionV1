@@ -81,6 +81,10 @@ Environment variables (see `.env.example`):
 - `DASHSCOPE_API_KEY`, `DASHSCOPE_BASE_URL`
 - `GEMINI_API_KEY`
 - `ALIYUN_ACCESS_KEY_ID`, `ALIYUN_ACCESS_KEY_SECRET`, `ALIYUN_OSS_ENDPOINT`, `ALIYUN_OSS_BUCKET`
+- `JWT_SECRET_KEY` — **required in production**; generates/signs JWT tokens. Must be a strong random string.
+- `SERVICE_TOKEN` — shared secret for orchestrator-to-backend auth. Required for orchestrator-facing endpoints.
+- `CORS_ALLOW_ORIGINS` — comma-separated list of allowed origins (defaults to `http://localhost:5173,http://localhost:3000` for dev)
+- `FRONTEND_URL` — frontend URL used in CORS config for production
 - `PAPERIGNITION_LOCAL_MODE` — set `true` to use ci_config.yaml
 - `PAPERIGNITION_CONFIG` — override config path
 
@@ -106,7 +110,7 @@ The orchestrator runs daily via Docker on a Mac Mini. CI builds and pushes the i
 **CI/CD flow:**
 1. Push to `main` → CI runs lint + tests → `build-orchestrator` job builds multi-arch Docker image (amd64 + arm64)
 2. Image pushed to `ghcr.io/algnite-solutions/paperignition-orchestrator:latest`
-3. Mac Mini cron pulls `:latest` and runs it daily at 1am
+3. Mac Mini cron pulls `:latest` and runs it daily at 10pm
 
 **Docker image:** built from `Dockerfile.orchestrator`, CI config in `.github/workflows/ci.yml` (`build-orchestrator` job).
 
@@ -136,7 +140,7 @@ docker run --rm --env-file ~/paperignition/.env \
   ghcr.io/algnite-solutions/paperignition-orchestrator:latest
 
 # 6. Set up daily cron
-crontab -e   # add the line below (runs at 1am local time daily):
+crontab -e   # add the line below (runs at 10pm local time daily):
 # 0 1 * * * /usr/local/bin/docker pull ghcr.io/algnite-solutions/paperignition-orchestrator:latest >> /Users/leahai/paperignition/orchestrator.log 2>&1 && /usr/local/bin/docker run --rm --env-file /Users/leahai/paperignition/.env ghcr.io/algnite-solutions/paperignition-orchestrator:latest >> /Users/leahai/paperignition/orchestrator.log 2>&1
 crontab -l   # verify
 ```

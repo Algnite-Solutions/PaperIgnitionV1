@@ -1,8 +1,10 @@
+import hmac
+import os
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer  # Import SecurityScopes
+from fastapi import Depends, Header, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from pwdlib import PasswordHash
 from sqlalchemy import or_
@@ -13,10 +15,10 @@ from sqlalchemy.orm import selectinload
 from ..db_utils import get_db
 from ..models.users import User
 
-# JWT配置
-SECRET_KEY = "aignite_secret_key_change_in_production"  # 生产环境中应使用环境变量
+# JWT configuration — MUST be set via JWT_SECRET_KEY env var or security.jwt_secret_key in config
+SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30 * 24 * 60  # 30天
+ACCESS_TOKEN_EXPIRE_MINUTES = 30 * 24 * 60  # 30 days
 
 # 密码哈希工具 - bcrypt for new hashes, argon2 for verifying legacy hashes
 from pwdlib.hashers.bcrypt import BcryptHasher
@@ -104,3 +106,16 @@ async def get_current_user(
     #     raise HTTPException(status_code=400, detail="Inactive user")
 
     return user
+
+
+async def verify_service_token(
+    x_service_token: str = Header(..., alias="X-Service-Token"),
+):
+    """Verify that the request comes from a trusted service (orchestrator)."""
+    expected = os.environ.get("SERVICE_TOKEN", "")
+    if not expected or not hmac.compare_digest(x_service_token, expected):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid service token",
+        )
+    return True
