@@ -47,6 +47,7 @@ jobs:
 
     env:
       PAPERIGNITION_CONFIG: backend/configs/ci_config.yaml
+      PAPERIGNITION_LOCAL_MODE: "true"
 
     steps:
       - uses: actions/checkout@v4
