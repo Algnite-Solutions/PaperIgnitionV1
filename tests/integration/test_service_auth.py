@@ -122,3 +122,84 @@ class TestSearchJWTProtection:
             json={"query": "test", "top_k": 5},
         )
         assert resp.status_code == 401
+
+
+@pytest.mark.usefixtures("clean_tables")
+class TestDualAuthDigests:
+    """Verify dual-auth on user-facing digests endpoints:
+    - Owner JWT (sub matches URL username) → allowed
+    - Service token → allowed
+    - Another user's JWT → rejected
+    - No auth → rejected
+    """
+
+    async def test_recommendations_owner_jwt_allowed(self, client, test_user, auth_headers):
+        username = test_user["username"]
+        resp = await client.get(f"/api/digests/recommendations/{username}", headers=auth_headers)
+        assert resp.status_code == 200, resp.text
+
+    async def test_recommendations_service_token_allowed(self, client, test_user, service_headers):
+        username = test_user["username"]
+        resp = await client.get(f"/api/digests/recommendations/{username}", headers=service_headers)
+        assert resp.status_code == 200, resp.text
+
+    async def test_recommendations_other_user_jwt_rejected(self, client, test_user, auth_headers):
+        # auth_headers belongs to test_user, but we ask for someone else's recs
+        resp = await client.get("/api/digests/recommendations/some_other_user", headers=auth_headers)
+        assert resp.status_code == 401
+
+    async def test_recommendations_no_auth_rejected(self, client, test_user):
+        username = test_user["username"]
+        resp = await client.get(f"/api/digests/recommendations/{username}")
+        assert resp.status_code == 401
+
+    async def test_blog_content_owner_jwt_allowed(self, client, test_user, auth_headers, service_headers):
+        username = test_user["username"]
+        paper_id = "2401.dual_auth"
+        # Seed via service token
+        await client.post(
+            f"/api/digests/recommend?username={username}",
+            json={"username": username, "paper_id": paper_id, "title": "T",
+                  "authors": "A", "abstract": "X", "blog": "# Body"},
+            headers=service_headers,
+        )
+        resp = await client.get(
+            f"/api/digests/blog_content/{paper_id}/{username}",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200, resp.text
+
+    async def test_blog_content_other_user_jwt_rejected(self, client, test_user, auth_headers):
+        resp = await client.get(
+            "/api/digests/blog_content/2401.dual_auth/some_other_user",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 401
+
+    async def test_feedback_owner_jwt_allowed(self, client, test_user, auth_headers, service_headers):
+        username = test_user["username"]
+        paper_id = "2401.feedback_dual"
+        await client.post(
+            f"/api/digests/recommend?username={username}",
+            json={"username": username, "paper_id": paper_id, "title": "T",
+                  "authors": "A", "abstract": "X", "blog": "# Body"},
+            headers=service_headers,
+        )
+        resp = await client.put(
+            f"/api/digests/recommendations/{paper_id}/feedback",
+            json={"username": username, "blog_liked": True},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["blog_liked"] is True
+
+    async def test_feedback_jwt_with_mismatched_body_username_rejected(
+        self, client, test_user, auth_headers
+    ):
+        # JWT belongs to test_user, but body claims to act as someone else
+        resp = await client.put(
+            "/api/digests/recommendations/2401.feedback_dual/feedback",
+            json={"username": "some_other_user", "blog_liked": True},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 401

@@ -119,3 +119,45 @@ async def verify_service_token(
             detail="Invalid service token",
         )
     return True
+
+
+def _service_token_matches(x_service_token: Optional[str]) -> bool:
+    expected = os.environ.get("SERVICE_TOKEN", "")
+    return bool(x_service_token and expected and hmac.compare_digest(x_service_token, expected))
+
+
+async def _user_from_jwt(
+    credentials: Optional[HTTPAuthorizationCredentials],
+    db: AsyncSession,
+) -> Optional[User]:
+    if credentials is None:
+        return None
+    try:
+        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+        sub = payload.get("sub")
+        if not sub:
+            return None
+    except JWTError:
+        return None
+    result = await db.execute(
+        select(User).where(or_(User.email == sub, User.wx_openid == sub))
+    )
+    return result.scalars().first()
+
+
+_optional_bearer = HTTPBearer(auto_error=False)
+
+
+async def verify_owner_or_service(
+    username: str,
+    x_service_token: Optional[str] = Header(None, alias="X-Service-Token"),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(_optional_bearer),
+    db: AsyncSession = Depends(get_db),
+):
+    """Allow if X-Service-Token is valid OR JWT bearer's user matches `username`."""
+    if _service_token_matches(x_service_token):
+        return True
+    user = await _user_from_jwt(credentials, db)
+    if user is not None and user.username == username:
+        return True
+    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authorized")
