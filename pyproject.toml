@@ -24,6 +24,7 @@ dependencies = [
     "openai",
     "pydantic[email]",
     "aiosmtplib",
+    "slowapi",
 ]
 
 [project.optional-dependencies]

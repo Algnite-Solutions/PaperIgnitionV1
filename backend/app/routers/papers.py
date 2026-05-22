@@ -12,11 +12,13 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..auth.utils import get_current_user
 from ..db_utils import get_index_service_url, get_paper_db
+from ..limiter import limiter
 
 logger = logging.getLogger(__name__)
 
@@ -27,9 +29,9 @@ router = APIRouter(prefix="/papers", tags=["papers"])
 
 class FindSimilarRequest(BaseModel):
     """Request model for find_similar endpoint"""
-    query: str
-    top_k: int = 10
-    similarity_cutoff: float = 0.1
+    query: str = Field(..., min_length=1, max_length=2000)
+    top_k: int = Field(default=10, ge=1, le=100)
+    similarity_cutoff: float = Field(default=0.1, ge=-1.0, le=1.0)
     filters: Optional[Dict[str, Any]] = None
     result_types: Optional[List[str]] = None
 
@@ -134,10 +136,12 @@ def get_embedding_client(request: Request) -> BackendEmbeddingClient:
 # ==================== Find Similar Endpoint ====================
 
 @router.post("/find_similar", response_model=FindSimilarResponse)
+@limiter.limit("20/minute")
 async def find_similar_papers(
     request_body: FindSimilarRequest,
     request: Request,
-    db: AsyncSession = Depends(get_paper_db)
+    db: AsyncSession = Depends(get_paper_db),
+    current_user=Depends(get_current_user),
 ):
     """
     Semantic similarity search using pgvector.
@@ -257,9 +261,12 @@ async def find_similar_papers(
 # ==================== Find Similar BM25 Endpoint ====================
 
 @router.post("/find_similar_bm25", response_model=FindSimilarResponse)
+@limiter.limit("30/minute")
 async def find_similar_papers_bm25(
+    request: Request,
     request_body: FindSimilarRequest,
-    db: AsyncSession = Depends(get_paper_db)
+    db: AsyncSession = Depends(get_paper_db),
+    current_user=Depends(get_current_user),
 ):
     """
     Full-text similarity search using BM25 (PostgreSQL ts_rank).

@@ -32,7 +32,7 @@ class APIResponseError(APIClientError):
 class BaseAPIClient:
     """Base API client with common functionality"""
 
-    def __init__(self, base_url: str, timeout: float = 30.0, max_retries: int = 3, verify_ssl: bool = True):
+    def __init__(self, base_url: str, timeout: float = 30.0, max_retries: int = 3, verify_ssl: bool = True, service_token: Optional[str] = None):
         """
         Initialize base API client
 
@@ -41,11 +41,13 @@ class BaseAPIClient:
             timeout: Default timeout in seconds
             max_retries: Maximum number of retry attempts
             verify_ssl: Whether to verify SSL certificates
+            service_token: Shared secret for backend service-to-service auth
         """
         self.base_url = base_url.rstrip('/')
         self.timeout = timeout
         self.max_retries = max_retries
         self.verify_ssl = verify_ssl
+        self.service_token = service_token
         self.logger = logging.getLogger(self.__class__.__name__)
 
     @retry(
@@ -84,13 +86,17 @@ class BaseAPIClient:
 
         try:
             self.logger.debug(f"Making {method} request to {url}")
+            headers = {}
+            if self.service_token:
+                headers["X-Service-Token"] = self.service_token
             response = httpx.request(
                 method=method,
                 url=url,
                 json=json_data,
                 params=params,
                 timeout=timeout_value,
-                verify=self.verify_ssl
+                verify=self.verify_ssl,
+                headers=headers,
             )
             response.raise_for_status()
             return response
@@ -123,8 +129,8 @@ class BaseAPIClient:
 class BackendAPIClient(BaseAPIClient):
     """Client for Backend App Service API"""
 
-    def __init__(self, base_url: str, timeout: float = 30.0, verify_ssl: bool = True):
-        super().__init__(base_url, timeout, verify_ssl=verify_ssl)
+    def __init__(self, base_url: str, timeout: float = 30.0, verify_ssl: bool = True, service_token: Optional[str] = None):
+        super().__init__(base_url, timeout, verify_ssl=verify_ssl, service_token=service_token)
 
     def get_all_users(self, active_since: Optional[str] = None) -> List[Dict[str, Any]]:
         """

@@ -16,7 +16,7 @@ from ..auth.schemas import (
     UserOut,
     UserProfileUpdate,
 )
-from ..auth.utils import get_current_user
+from ..auth.utils import get_current_user, verify_service_token
 from ..db_utils import get_db
 from ..models.users import (
     FavoritePaper,
@@ -282,7 +282,11 @@ async def update_user_profile(
 
 
 @router.get("/all", response_model=List[UserOut])
-async def get_all_users_info(active_since: Optional[str] = None, db: AsyncSession = Depends(get_db)):
+async def get_all_users_info(
+    active_since: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    _svc: bool = Depends(verify_service_token),
+):
     """Get all users info, optionally filtered by recent activity.
 
     Args:
@@ -319,7 +323,8 @@ async def get_all_users_info(active_since: Optional[str] = None, db: AsyncSessio
 @router.get("/by_email/{username}", response_model=UserOut)
 async def get_user_by_email(
     username: str,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    _svc: bool = Depends(verify_service_token),
 ):
     """Get user details by username"""
     result = await db.execute(select(User).where(User.username == username))
@@ -401,7 +406,10 @@ async def trigger_profile_boost(
 
 
 @router.get("/boost-requested")
-async def get_users_with_boost_requested(db: AsyncSession = Depends(get_db)):
+async def get_users_with_boost_requested(
+    db: AsyncSession = Depends(get_db),
+    _svc: bool = Depends(verify_service_token),
+):
     """Return list of usernames where profile_boost_requested=True (orchestrator-facing, no auth)."""
     result = await db.execute(
         select(User.username).where(User.profile_boost_requested.is_(True))
@@ -419,6 +427,7 @@ async def complete_profile_boost(
     username: str,
     body: BoostCompleteRequest,
     db: AsyncSession = Depends(get_db),
+    _svc: bool = Depends(verify_service_token),
 ):
     """Orchestrator calls this after profile extraction to save profile and reset the boost flag."""
     result = await db.execute(select(User).where(User.username == username))
@@ -441,7 +450,11 @@ async def complete_profile_boost(
 
 
 @router.get("/profile-pool/{username}", response_model=List[ProfilePoolEntryOut])
-async def get_profile_pool(username: str, db: AsyncSession = Depends(get_db)):
+async def get_profile_pool(
+    username: str,
+    db: AsyncSession = Depends(get_db),
+    _svc: bool = Depends(verify_service_token),
+):
     """Get all profile pool entries for a user (orchestrator-facing, no auth)."""
     result = await db.execute(
         select(ProfilePoolEntry)
@@ -474,6 +487,7 @@ async def save_profile_pool(
     username: str,
     body: SaveProfilePoolRequest,
     db: AsyncSession = Depends(get_db),
+    _svc: bool = Depends(verify_service_token),
 ):
     """Replace the profile pool for a user and update the active profile.
 
@@ -576,6 +590,7 @@ async def record_boost_history(
     username: str,
     body: BoostHistoryIn,
     db: AsyncSession = Depends(get_db),
+    _svc: bool = Depends(verify_service_token),
 ):
     """Record a boost event (orchestrator-facing, no auth). Idempotent upsert."""
     result = await db.execute(select(User).where(User.username == username))
@@ -627,7 +642,11 @@ async def record_boost_history(
 
 
 @router.get("/boost-history/{username}")
-async def get_boost_history(username: str, db: AsyncSession = Depends(get_db)):
+async def get_boost_history(
+    username: str,
+    db: AsyncSession = Depends(get_db),
+    _svc: bool = Depends(verify_service_token),
+):
     """Get boost history for a user (F1 timeline, dashboard-facing)."""
     result = await db.execute(
         select(ProfileBoostHistory)

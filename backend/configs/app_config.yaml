@@ -37,3 +37,12 @@ smtp:
   username: ${SMTP_USERNAME}
   password: ${SMTP_PASSWORD}
   from_address: ${SMTP_FROM_ADDRESS}
+
+security:
+  jwt_secret_key: ${JWT_SECRET_KEY}
+  service_token: ${SERVICE_TOKEN}
+
+cors:
+  allow_origins:
+    - ${FRONTEND_URL}
+    - ${APP_SERVICE_HOST}

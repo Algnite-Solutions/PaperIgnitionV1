@@ -27,3 +27,13 @@ aliyun_oss:
 
 smtp:
   enabled: false
+
+security:
+  jwt_secret_key: ci-test-secret-key
+  service_token: ci-test-service-token
+
+cors:
+  allow_origins:
+    - http://localhost:5173
+    - http://localhost:3000
+    - http://testserver

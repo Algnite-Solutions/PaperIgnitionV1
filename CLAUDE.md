@@ -81,6 +81,10 @@ Environment variables (see `.env.example`):
 - `DASHSCOPE_API_KEY`, `DASHSCOPE_BASE_URL`
 - `GEMINI_API_KEY`
 - `ALIYUN_ACCESS_KEY_ID`, `ALIYUN_ACCESS_KEY_SECRET`, `ALIYUN_OSS_ENDPOINT`, `ALIYUN_OSS_BUCKET`
+- `JWT_SECRET_KEY` — **required in production**; generates/signs JWT tokens. Must be a strong random string.
+- `SERVICE_TOKEN` — shared secret for orchestrator-to-backend auth. Required for orchestrator-facing endpoints.
+- `CORS_ALLOW_ORIGINS` — comma-separated list of allowed origins (defaults to `http://localhost:5173,http://localhost:3000` for dev)
+- `FRONTEND_URL` — frontend URL used in CORS config for production
 - `PAPERIGNITION_LOCAL_MODE` — set `true` to use ci_config.yaml
 - `PAPERIGNITION_CONFIG` — override config path
 

@@ -139,6 +139,12 @@ async def auth_headers(test_user):
     return {"Authorization": f"Bearer {test_user['access_token']}"}
 
 
+@pytest_asyncio.fixture(loop_scope="session")
+async def service_headers():
+    """Return X-Service-Token header for orchestrator-facing endpoints."""
+    return {"X-Service-Token": "ci-test-service-token"}
+
+
 @pytest.fixture
 def mock_dashscope(monkeypatch):
     """Patch BackendEmbeddingClient.get_embedding to return a deterministic 1536-dim vector."""
