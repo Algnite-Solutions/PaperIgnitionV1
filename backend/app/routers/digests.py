@@ -9,11 +9,19 @@ import re
 from datetime import datetime, timezone
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi.security import HTTPAuthorizationCredentials
+from fastapi.security.utils import get_authorization_scheme_param
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from ..auth.utils import get_current_user, verify_service_token
+from ..auth.utils import (
+    _service_token_matches,
+    _user_from_jwt,
+    get_current_user,
+    verify_owner_or_service,
+    verify_service_token,
+)
 from ..db_utils import get_db
 from ..models.papers import FeedbackRequest, PaperBase, PaperRecommendation, RetrieveResultSave
 from ..models.users import User, UserPaperRecommendation, UserRetrieveResult
@@ -30,7 +38,7 @@ async def get_recommended_papers_info(
     username: str,
     limit: int = 50,
     db: AsyncSession = Depends(get_db),
-    _svc: bool = Depends(verify_service_token),
+    _auth: bool = Depends(verify_owner_or_service),
 ):
     """Get recommended papers for a user"""
     result = await db.execute(
@@ -92,10 +100,20 @@ async def get_recommended_papers_info(
 async def update_paper_feedback(
     paper_id: str,
     feedback: FeedbackRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
-    _svc: bool = Depends(verify_service_token),
 ):
-    """Update blog feedback (like/dislike) for a paper recommendation"""
+    """Update blog feedback (like/dislike) for a paper recommendation.
+
+    Auth: X-Service-Token (orchestrator) OR JWT whose user matches feedback.username.
+    """
+    if not _service_token_matches(request.headers.get("X-Service-Token")):
+        scheme, token = get_authorization_scheme_param(request.headers.get("Authorization"))
+        creds = HTTPAuthorizationCredentials(scheme=scheme, credentials=token) if scheme.lower() == "bearer" else None
+        user = await _user_from_jwt(creds, db)
+        if user is None or user.username != feedback.username:
+            raise HTTPException(status_code=401, detail="Not authorized")
+
     try:
         result = await db.execute(
             select(UserPaperRecommendation)
@@ -189,7 +207,7 @@ async def get_blog_content(
     paper_id: str,
     username: str,
     db: AsyncSession = Depends(get_db),
-    _svc: bool = Depends(verify_service_token),
+    _auth: bool = Depends(verify_owner_or_service),
 ):
     """Get blog markdown content for a paper recommendation by paper_id and username"""
     logger.info(f"Fetching blog content for paper_id: {paper_id}, username: {username}")
