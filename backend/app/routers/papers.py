@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..auth.utils import get_current_user
+from ..auth.utils import verify_jwt_or_service
 from ..db_utils import get_index_service_url, get_paper_db
 from ..limiter import limiter
 
@@ -141,7 +141,7 @@ async def find_similar_papers(
     request_body: FindSimilarRequest,
     request: Request,
     db: AsyncSession = Depends(get_paper_db),
-    current_user=Depends(get_current_user),
+    _auth=Depends(verify_jwt_or_service),
 ):
     """
     Semantic similarity search using pgvector.
@@ -266,7 +266,7 @@ async def find_similar_papers_bm25(
     request: Request,
     request_body: FindSimilarRequest,
     db: AsyncSession = Depends(get_paper_db),
-    current_user=Depends(get_current_user),
+    _auth=Depends(verify_jwt_or_service),
 ):
     """
     Full-text similarity search using BM25 (PostgreSQL ts_rank).

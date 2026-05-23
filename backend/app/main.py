@@ -123,7 +123,7 @@ app.include_router(digests.router, prefix="/api")
 app.include_router(favorites.router, prefix="/api")
 
 # Compatibility routes
-from backend.app.auth.utils import get_current_user  # noqa: E402 (after app creation to avoid circular import)
+from backend.app.auth.utils import verify_jwt_or_service  # noqa: E402 (after app creation to avoid circular import)
 from backend.app.routers.papers import (
     FindSimilarRequest,
     FindSimilarResponse,
@@ -140,9 +140,9 @@ async def compat_find_similar(
     request_body: FindSimilarRequest,
     request: Request,
     db: AsyncSession = Depends(get_paper_db),
-    current_user=Depends(get_current_user),
+    _auth=Depends(verify_jwt_or_service),
 ):
-    return await find_similar_papers(request_body, request, db, current_user=current_user)
+    return await find_similar_papers(request_body, request, db)
 
 
 @app.get("/paper_content/{paper_id}")
