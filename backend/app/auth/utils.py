@@ -161,3 +161,17 @@ async def verify_owner_or_service(
     if user is not None and user.username == username:
         return True
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authorized")
+
+
+async def verify_jwt_or_service(
+    x_service_token: Optional[str] = Header(None, alias="X-Service-Token"),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(_optional_bearer),
+    db: AsyncSession = Depends(get_db),
+):
+    """Allow if X-Service-Token is valid OR any valid JWT is presented."""
+    if _service_token_matches(x_service_token):
+        return True
+    user = await _user_from_jwt(credentials, db)
+    if user is not None:
+        return True
+    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
