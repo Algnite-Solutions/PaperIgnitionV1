@@ -23,6 +23,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from backend.app.db_utils import Base as UserBase
+from backend.app.models.api_keys import UserApiKey  # noqa: F401
 from backend.app.models.users import (
     ResearchDomain,
 )

@@ -402,6 +402,37 @@ React 19 + Vite 6 + TypeScript SPA replacing the legacy `beta_frontend/`.
 - `GET /api/health` — health check
 - `GET /api/domains` — list research domains
 
+**API Key Management (JWT required):**
+- `POST /api/users/me/api-keys` — create API key (returns plaintext once)
+- `GET /api/users/me/api-keys` — list user's API keys
+- `POST /api/users/me/api-keys/{key_id}/revoke` — soft-revoke key
+- `DELETE /api/users/me/api-keys/{key_id}` — hard-delete revoked key
+
+### Agent Integration
+
+Registered users can connect AI agents (Claude Code, shell-driven LLMs) via per-user API keys. Keys use format `pi_live_<32 url-safe chars>`, stored as SHA-256 hash, soft-revocable via `revoked_at`.
+
+**Creating a key:** Profile page > API Keys > Create New Key. The plaintext is shown once.
+
+**Agent CLI** (`scripts/agent_cli/`):
+```bash
+# Config via env vars
+export PI_API_KEY="pi_live_..."
+export PI_BASE_URL="https://www.paperignition.com"
+
+# Search
+paperignition search "transformer attention" --pretty
+paperignition search-bm25 "reinforcement learning" --pretty
+
+# Digest
+paperignition digest-list <username> --pretty
+paperignition digest-blog <paper_id> <username>
+```
+
+**Auth flow:** Endpoints accept JWT `Authorization: Bearer <token>` OR `X-API-Key: pi_live_...` OR `X-Service-Token`. API keys work on read-only endpoints (papers search, digests read). Management (favorites, profile, key CRUD) requires JWT.
+
+**Claude Code skill:** `.claude/skills/paperignition/SKILL.md` — tells Claude Code how to invoke the CLI for paper search and digest reading.
+
 ## Important Notes
 
 - **No PYTHONPATH needed.** Install with `pip install -e .` and all packages (`core`, `backend`, `orchestrator`) are importable.

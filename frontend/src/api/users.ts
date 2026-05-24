@@ -56,3 +56,38 @@ export interface ResearchDomain {
 export function getDomains(): Promise<ResearchDomain[]> {
   return api.get<ResearchDomain[]>('/api/domains')
 }
+
+// ── API Key Management ──────────────────────────────────────────────────────
+
+export interface ApiKey {
+  id: number
+  name: string
+  key_prefix: string
+  created_at: string | null
+  last_used_at: string | null
+  revoked_at: string | null
+}
+
+export interface ApiKeyCreateResponse {
+  id: number
+  name: string
+  key: string
+  key_prefix: string
+  created_at: string | null
+}
+
+export function listApiKeys(): Promise<ApiKey[]> {
+  return api.get<ApiKey[]>('/api/users/me/api-keys')
+}
+
+export function createApiKey(name: string): Promise<ApiKeyCreateResponse> {
+  return api.post<ApiKeyCreateResponse>('/api/users/me/api-keys', { name })
+}
+
+export function revokeApiKey(keyId: number): Promise<{ message: string }> {
+  return api.post<{ message: string }>(`/api/users/me/api-keys/${keyId}/revoke`)
+}
+
+export function deleteApiKey(keyId: number): Promise<{ message: string }> {
+  return api.delete<{ message: string }>(`/api/users/me/api-keys/${keyId}`)
+}

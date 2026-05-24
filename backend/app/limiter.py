@@ -1,18 +1,32 @@
+import hashlib
 import os
 
+from cachetools import TTLCache
 from fastapi import Request
 from jose import JWTError, jwt
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
+# Maps sha256(api_key)[:16] → "user:{email}". Populated by _user_from_api_key
+# during auth resolution so subsequent limiter checks share the JWT bucket.
+_api_key_user_cache: TTLCache = TTLCache(maxsize=1024, ttl=300)
+
+
+def record_apikey_user(key_hash_16: str, user_identifier: str) -> None:
+    """Called from auth dep after resolving an API key to a user."""
+    _api_key_user_cache[key_hash_16] = f"user:{user_identifier}"
+
 
 def _user_key(request: Request) -> str:
-    """Rate-limit key: decode JWT sub claim if present, else client IP.
+    """Rate-limit key: API key (shared with JWT bucket) > JWT sub > client IP."""
+    api_key = request.headers.get("x-api-key", "")
+    if api_key.startswith("pi_live_"):
+        cache_key = hashlib.sha256(api_key.encode()).hexdigest()[:16]
+        cached = _api_key_user_cache.get(cache_key)
+        if cached:
+            return cached
+        return f"apikey:{cache_key}"
 
-    Reads the token directly from the Authorization header — does NOT depend
-    on request.state.user (which slowapi's decorator-phase check runs before
-    FastAPI resolves Depends(get_current_user)).
-    """
     auth = request.headers.get("authorization", "")
     if auth.startswith("Bearer "):
         try:
