@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Save, Globe, Edit3, X, Zap } from 'lucide-react'
-import { getMe, updateProfile, triggerBoost, type UserProfile } from '../api/users'
+import { Save, Globe, Edit3, X, Zap, Key, Copy, Trash2 } from 'lucide-react'
+import { getMe, updateProfile, triggerBoost, listApiKeys, createApiKey, revokeApiKey, deleteApiKey, type UserProfile } from '../api/users'
 import { Button } from '../components/ui/Button'
 import { Spinner } from '../components/ui/Spinner'
 import { toast } from '../components/ui/Toast'
@@ -335,6 +335,187 @@ function BlogLanguageSection({ profile }: { profile: UserProfile }) {
   )
 }
 
+function ApiKeysSection() {
+  const queryClient = useQueryClient()
+  const [creating, setCreating] = useState(false)
+  const [newKeyName, setNewKeyName] = useState('')
+  const [createdKey, setCreatedKey] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+
+  const { data: keys = [], isLoading } = useQuery({
+    queryKey: ['api-keys'],
+    queryFn: listApiKeys,
+  })
+
+  const create = useMutation({
+    mutationFn: (name: string) => createApiKey(name),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['api-keys'] })
+      setCreatedKey(data.key)
+      setNewKeyName('')
+      setCreating(false)
+    },
+    onError: () => toast('error', 'Failed to create API key'),
+  })
+
+  const revoke = useMutation({
+    mutationFn: (id: number) => revokeApiKey(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['api-keys'] })
+      toast('success', 'API key revoked')
+    },
+    onError: () => toast('error', 'Failed to revoke key'),
+  })
+
+  const remove = useMutation({
+    mutationFn: (id: number) => deleteApiKey(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['api-keys'] })
+      toast('success', 'API key deleted')
+    },
+    onError: () => toast('error', 'Failed to delete key'),
+  })
+
+  function copyKey() {
+    if (createdKey) {
+      navigator.clipboard.writeText(createdKey)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
+  return (
+    <section className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-5 space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Key size={18} className="text-gray-500" />
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">API Keys</h2>
+        </div>
+        {!creating && (
+          <button
+            onClick={() => setCreating(true)}
+            className="text-sm text-brand hover:text-brand-dark cursor-pointer"
+          >
+            + Create New Key
+          </button>
+        )}
+      </div>
+      <p className="text-sm text-gray-500 dark:text-gray-400">
+        API keys allow AI agents to search papers and read your digest on your behalf. Keys start with <code className="text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">pi_live_</code>.
+      </p>
+
+      {creating && (
+        <div className="flex items-center gap-2">
+          <input
+            value={newKeyName}
+            onChange={(e) => setNewKeyName(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && newKeyName.trim() && create.mutate(newKeyName.trim())}
+            className="flex-1 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm outline-none focus:border-brand"
+            placeholder="Key name (e.g. my-agent)"
+            autoFocus
+          />
+          <Button onClick={() => create.mutate(newKeyName.trim())} disabled={!newKeyName.trim() || create.isPending}>
+            {create.isPending ? <Spinner className="size-4" /> : 'Create'}
+          </Button>
+          <button onClick={() => { setCreating(false); setNewKeyName('') }} className="text-gray-400 hover:text-gray-600 cursor-pointer">
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
+      {createdKey && (
+        <div className="rounded-lg border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 p-4 space-y-2">
+          <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+            Copy your API key now — you won&apos;t be able to see it again!
+          </p>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 text-xs bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded px-3 py-2 font-mono break-all">
+              {createdKey}
+            </code>
+            <button
+              onClick={copyKey}
+              className="shrink-0 rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
+            >
+              {copied ? 'Copied!' : <Copy size={14} />}
+            </button>
+          </div>
+          <button
+            onClick={() => setCreatedKey(null)}
+            className="text-xs text-amber-700 dark:text-amber-400 hover:underline cursor-pointer"
+          >
+            I&apos;ve saved my key — dismiss
+          </button>
+        </div>
+      )}
+
+      {isLoading ? (
+        <div className="flex justify-center py-4"><Spinner className="size-5" /></div>
+      ) : keys.length === 0 ? (
+        <p className="text-sm text-gray-400 italic py-2">No API keys yet</p>
+      ) : (
+        <div className="space-y-2">
+          {keys.map((k) => (
+            <div
+              key={k.id}
+              className="flex items-center gap-3 rounded-lg border border-gray-200 dark:border-gray-700 px-4 py-3"
+            >
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{k.name}</span>
+                  {k.revoked_at ? (
+                    <span className="shrink-0 rounded-full bg-red-100 dark:bg-red-900/30 px-2 py-0.5 text-xs text-red-600 dark:text-red-400">
+                      Revoked
+                    </span>
+                  ) : (
+                    <span className="shrink-0 rounded-full bg-green-100 dark:bg-green-900/30 px-2 py-0.5 text-xs text-green-600 dark:text-green-400">
+                      Active
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-400 font-mono mt-0.5">
+                  {k.key_prefix}...
+                  <span className="ml-3 text-gray-400">
+                    Created {k.created_at ? new Date(k.created_at).toLocaleDateString() : '—'}
+                  </span>
+                  {k.last_used_at && (
+                    <span className="ml-3 text-gray-400">
+                      Last used {new Date(k.last_used_at).toLocaleDateString()}
+                    </span>
+                  )}
+                </p>
+              </div>
+              <div className="flex items-center gap-1">
+                {!k.revoked_at && (
+                  <button
+                    onClick={() => {
+                      if (confirm('Revoke this API key? Agents using it will lose access.')) revoke.mutate(k.id)
+                    }}
+                    className="rounded-lg px-2 py-1 text-xs text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30 cursor-pointer"
+                    disabled={revoke.isPending}
+                  >
+                    Revoke
+                  </button>
+                )}
+                {k.revoked_at && (
+                  <button
+                    onClick={() => {
+                      if (confirm('Permanently delete this key?')) remove.mutate(k.id)
+                    }}
+                    className="rounded-lg px-2 py-1 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 cursor-pointer"
+                    disabled={remove.isPending}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
 export function ProfilePage() {
   const { data: profile, isLoading, error } = useQuery({
     queryKey: ['profile'],
@@ -389,6 +570,9 @@ export function ProfilePage() {
 
       {/* System profile */}
       <SystemProfileSection profile={profile} />
+
+      {/* API Keys */}
+      <ApiKeysSection />
     </div>
   )
 }

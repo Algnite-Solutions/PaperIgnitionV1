@@ -1,6 +1,8 @@
+import hashlib
 import hmac
 import os
-from datetime import datetime, timedelta
+import secrets
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import Depends, Header, HTTPException, status
@@ -13,6 +15,7 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
 from ..db_utils import get_db
+from ..models.api_keys import UserApiKey
 from ..models.users import User
 
 # JWT configuration — MUST be set via JWT_SECRET_KEY env var or security.jwt_secret_key in config
@@ -126,6 +129,47 @@ def _service_token_matches(x_service_token: Optional[str]) -> bool:
     return bool(x_service_token and expected and hmac.compare_digest(x_service_token, expected))
 
 
+# ── API Key helpers ──────────────────────────────────────────────────────────
+
+API_KEY_PREFIX = "pi_live_"
+
+
+def _hash_api_key(raw_key: str) -> str:
+    return hashlib.sha256(raw_key.encode("utf-8")).hexdigest()
+
+
+def generate_api_key() -> tuple[str, str]:
+    raw = secrets.token_urlsafe(24)
+    full_key = f"{API_KEY_PREFIX}{raw}"
+    return full_key, _hash_api_key(full_key)
+
+
+def validate_api_key_format(key: str) -> bool:
+    return key.startswith(API_KEY_PREFIX) and len(key) > len(API_KEY_PREFIX)
+
+
+async def _user_from_api_key(
+    api_key: Optional[str],
+    db: AsyncSession,
+) -> Optional[User]:
+    if not api_key or not validate_api_key_format(api_key):
+        return None
+    key_hash = _hash_api_key(api_key)
+    result = await db.execute(
+        select(UserApiKey)
+        .where(UserApiKey.key_hash == key_hash, UserApiKey.revoked_at.is_(None))
+        .options(selectinload(UserApiKey.user).selectinload(User.research_domains))
+    )
+    api_key_obj = result.scalars().first()
+    if api_key_obj is None:
+        return None
+    now = datetime.now(timezone.utc)
+    if api_key_obj.last_used_at is None or (now - api_key_obj.last_used_at).total_seconds() > 60:
+        api_key_obj.last_used_at = now
+        await db.flush()
+    return api_key_obj.user
+
+
 async def _user_from_jwt(
     credentials: Optional[HTTPAuthorizationCredentials],
     db: AsyncSession,
@@ -151,11 +195,15 @@ _optional_bearer = HTTPBearer(auto_error=False)
 async def verify_owner_or_service(
     username: str,
     x_service_token: Optional[str] = Header(None, alias="X-Service-Token"),
+    x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(_optional_bearer),
     db: AsyncSession = Depends(get_db),
 ):
-    """Allow if X-Service-Token is valid OR JWT bearer's user matches `username`."""
+    """Allow if X-Service-Token is valid OR JWT/API-key user matches `username`."""
     if _service_token_matches(x_service_token):
+        return True
+    user = await _user_from_api_key(x_api_key, db)
+    if user is not None and user.username == username:
         return True
     user = await _user_from_jwt(credentials, db)
     if user is not None and user.username == username:
@@ -165,11 +213,15 @@ async def verify_owner_or_service(
 
 async def verify_jwt_or_service(
     x_service_token: Optional[str] = Header(None, alias="X-Service-Token"),
+    x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(_optional_bearer),
     db: AsyncSession = Depends(get_db),
 ):
-    """Allow if X-Service-Token is valid OR any valid JWT is presented."""
+    """Allow if X-Service-Token is valid OR valid X-API-Key OR any valid JWT."""
     if _service_token_matches(x_service_token):
+        return True
+    user = await _user_from_api_key(x_api_key, db)
+    if user is not None:
         return True
     user = await _user_from_jwt(credentials, db)
     if user is not None:

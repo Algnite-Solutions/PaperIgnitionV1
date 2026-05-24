@@ -88,7 +88,7 @@ def clean_tables(ci_config_path):
         with user_conn.cursor() as cur:
             cur.execute(
                 "TRUNCATE TABLE paper_recommendations, favorite_papers, "
-                "user_retrieve_results, job_logs, user_domain_association, users CASCADE"
+                "user_retrieve_results, job_logs, user_domain_association, user_api_keys, users CASCADE"
             )
         user_conn.commit()
     finally:
@@ -143,6 +143,19 @@ async def auth_headers(test_user):
 async def service_headers():
     """Return X-Service-Token header for orchestrator-facing endpoints."""
     return {"X-Service-Token": "ci-test-service-token"}
+
+
+@pytest_asyncio.fixture(loop_scope="session")
+async def api_key_headers(client, test_user, auth_headers):
+    """Create an API key for the test user and return headers with X-API-Key."""
+    resp = await client.post(
+        "/api/users/me/api-keys",
+        json={"name": "test-key"},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 201, f"API key creation failed: {resp.text}"
+    raw_key = resp.json()["key"]
+    return {"X-API-Key": raw_key}
 
 
 @pytest.fixture

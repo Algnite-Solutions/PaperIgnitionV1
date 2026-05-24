@@ -16,8 +16,9 @@ from ..auth.schemas import (
     UserOut,
     UserProfileUpdate,
 )
-from ..auth.utils import get_current_user, verify_service_token
+from ..auth.utils import generate_api_key, get_current_user, verify_service_token
 from ..db_utils import get_db
+from ..models.api_keys import UserApiKey
 from ..models.users import (
     FavoritePaper,
     ProfileBoostHistory,
@@ -669,3 +670,121 @@ async def get_boost_history(
         }
         for e in entries
     ]
+
+
+# ── API Key Management (JWT-only) ───────────────────────────────────────────
+
+
+class ApiKeyCreate(BaseModel):
+    name: str
+
+
+class ApiKeyOut(BaseModel):
+    id: int
+    name: str
+    key_prefix: str
+    created_at: str | None = None
+    last_used_at: str | None = None
+    revoked_at: str | None = None
+
+
+class ApiKeyCreateResponse(BaseModel):
+    id: int
+    name: str
+    key: str
+    key_prefix: str
+    created_at: str | None = None
+
+
+@router.post("/me/api-keys", response_model=ApiKeyCreateResponse, status_code=status.HTTP_201_CREATED)
+async def create_api_key(
+    body: ApiKeyCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    raw_key, key_hash = generate_api_key()
+    prefix = raw_key[:12]
+    api_key_obj = UserApiKey(
+        user_id=current_user.id,
+        name=body.name,
+        key_prefix=prefix,
+        key_hash=key_hash,
+    )
+    db.add(api_key_obj)
+    await db.commit()
+    await db.refresh(api_key_obj)
+    return ApiKeyCreateResponse(
+        id=api_key_obj.id,
+        name=api_key_obj.name,
+        key=raw_key,
+        key_prefix=prefix,
+        created_at=api_key_obj.created_at.isoformat() if api_key_obj.created_at else None,
+    )
+
+
+@router.get("/me/api-keys", response_model=List[ApiKeyOut])
+async def list_api_keys(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(UserApiKey)
+        .where(UserApiKey.user_id == current_user.id)
+        .order_by(UserApiKey.created_at.desc())
+    )
+    keys = result.scalars().all()
+    return [
+        ApiKeyOut(
+            id=k.id,
+            name=k.name,
+            key_prefix=k.key_prefix,
+            created_at=k.created_at.isoformat() if k.created_at else None,
+            last_used_at=k.last_used_at.isoformat() if k.last_used_at else None,
+            revoked_at=k.revoked_at.isoformat() if k.revoked_at else None,
+        )
+        for k in keys
+    ]
+
+
+@router.post("/me/api-keys/{key_id}/revoke")
+async def revoke_api_key(
+    key_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(UserApiKey).where(
+            UserApiKey.id == key_id,
+            UserApiKey.user_id == current_user.id,
+        )
+    )
+    api_key_obj = result.scalars().first()
+    if not api_key_obj:
+        raise HTTPException(status_code=404, detail="API key not found")
+    if api_key_obj.revoked_at is not None:
+        raise HTTPException(status_code=400, detail="API key already revoked")
+    api_key_obj.revoked_at = datetime.now(timezone.utc)
+    await db.commit()
+    return {"message": "API key revoked", "id": key_id}
+
+
+@router.delete("/me/api-keys/{key_id}")
+async def delete_api_key(
+    key_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(UserApiKey).where(
+            UserApiKey.id == key_id,
+            UserApiKey.user_id == current_user.id,
+        )
+    )
+    api_key_obj = result.scalars().first()
+    if not api_key_obj:
+        raise HTTPException(status_code=404, detail="API key not found")
+    if api_key_obj.revoked_at is None:
+        raise HTTPException(status_code=400, detail="API key must be revoked before deletion")
+    await db.delete(api_key_obj)
+    await db.commit()
+    return {"message": "API key deleted", "id": key_id}

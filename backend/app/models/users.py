@@ -58,6 +58,7 @@ class User(Base):
     favorite_papers = relationship("FavoritePaper", back_populates="user")
     recommended_papers = relationship("UserPaperRecommendation", back_populates="user")
     retrieve_results = relationship("UserRetrieveResult", back_populates="user")
+    api_keys = relationship("UserApiKey", back_populates="user", cascade="all, delete-orphan")
 
 
 class ResearchDomain(Base):
