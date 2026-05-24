@@ -86,15 +86,16 @@ def main():
         if e.response.status_code == 401:
             print("Error: Unauthorized — check your API key", file=sys.stderr)
             sys.exit(3)
-        if e.response.status_code == 429:
+        elif e.response.status_code == 429:
             retry = e.response.headers.get("Retry-After", "unknown")
             print(f"Error: Rate limited. Retry after {retry}s", file=sys.stderr)
             sys.exit(4)
-        if e.response.status_code >= 500:
+        elif e.response.status_code >= 500:
             print(f"Error: Server error ({e.response.status_code})", file=sys.stderr)
             sys.exit(5)
-        print(f"Error: {e.response.status_code} — {e.response.text}", file=sys.stderr)
-        sys.exit(1)
+        else:
+            print(f"Error: {e.response.status_code} — {e.response.text}", file=sys.stderr)
+            sys.exit(1)
     except httpx.ConnectError:
         print(f"Error: Cannot connect to {args.base_url}", file=sys.stderr)
         sys.exit(1)

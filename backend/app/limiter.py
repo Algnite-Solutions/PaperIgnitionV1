@@ -7,20 +7,25 @@ from jose import JWTError, jwt
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-_api_key_cache: TTLCache = TTLCache(maxsize=1024, ttl=300)
+# Maps sha256(api_key)[:16] → "user:{email}". Populated by _user_from_api_key
+# during auth resolution so subsequent limiter checks share the JWT bucket.
+_api_key_user_cache: TTLCache = TTLCache(maxsize=1024, ttl=300)
+
+
+def record_apikey_user(key_hash_16: str, user_identifier: str) -> None:
+    """Called from auth dep after resolving an API key to a user."""
+    _api_key_user_cache[key_hash_16] = f"user:{user_identifier}"
 
 
 def _user_key(request: Request) -> str:
-    """Rate-limit key: API key > JWT sub > client IP."""
+    """Rate-limit key: API key (shared with JWT bucket) > JWT sub > client IP."""
     api_key = request.headers.get("x-api-key", "")
     if api_key.startswith("pi_live_"):
         cache_key = hashlib.sha256(api_key.encode()).hexdigest()[:16]
-        cached = _api_key_cache.get(cache_key)
+        cached = _api_key_user_cache.get(cache_key)
         if cached:
             return cached
-        user_key = f"apikey:{cache_key}"
-        _api_key_cache[cache_key] = user_key
-        return user_key
+        return f"apikey:{cache_key}"
 
     auth = request.headers.get("authorization", "")
     if auth.startswith("Bearer "):

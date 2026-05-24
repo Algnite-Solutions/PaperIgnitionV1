@@ -166,7 +166,12 @@ async def _user_from_api_key(
     now = datetime.now(timezone.utc)
     if api_key_obj.last_used_at is None or (now - api_key_obj.last_used_at).total_seconds() > 60:
         api_key_obj.last_used_at = now
+        # Persisted by get_db()'s commit-on-success; flush ensures it runs in the same txn.
         await db.flush()
+    # Populate limiter cache so this key shares the user's JWT rate-limit bucket.
+    from ..limiter import record_apikey_user
+
+    record_apikey_user(key_hash[:16], api_key_obj.user.email or api_key_obj.user.username)
     return api_key_obj.user
 
 
