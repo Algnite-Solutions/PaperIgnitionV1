@@ -1,5 +1,6 @@
 ---
 name: paperignition
+version: 1.0.0
 description: Search PaperIgnition for similar papers (semantic + BM25) and read the user's daily digest / personalized blog. Trigger when the user asks to find related papers, brainstorm research ideas, or summarize today's digest.
 ---
 
@@ -7,7 +8,10 @@ description: Search PaperIgnition for similar papers (semantic + BM25) and read 
 
 ## Prerequisites
 
-1. The `paperignition` CLI must be installed: `pip install -e .`
+1. The `paperignition` CLI must be installed:
+   - **Recommended**: `pipx install -e .` (works on macOS/Linux without PATH edits)
+   - **Alternative**: `pip install -e .` inside an activated venv
+   - **Note**: On macOS, `pip install -e .` with system Python places the script in `~/Library/Python/3.X/bin`, which is not on PATH by default. Use `pipx` or a venv.
 2. An API key must exist and be configured:
    - Via env vars: `PI_API_KEY=pi_live_...` and `PI_BASE_URL=https://www.paperignition.com`
    - Or via `--api-key` / `--base-url` flags on each command
@@ -17,13 +21,13 @@ description: Search PaperIgnition for similar papers (semantic + BM25) and read 
 ### Semantic (vector) search — preferred for conceptual queries
 
 ```bash
-paperignition search "graph neural networks for code optimization" --top-k 10 --pretty
+paperignition --pretty search "graph neural networks for code optimization" --top-k 10
 ```
 
 ### BM25 (keyword) search — for precise term matching
 
 ```bash
-paperignition search-bm25 "reinforcement learning human feedback" --top-k 5 --pretty
+paperignition --pretty search-bm25 "reinforcement learning human feedback" --top-k 5
 ```
 
 ## Digest Workflow
@@ -31,7 +35,7 @@ paperignition search-bm25 "reinforcement learning human feedback" --top-k 5 --pr
 ### List today's recommendations
 
 ```bash
-paperignition digest-list <username> --pretty
+paperignition --pretty digest-list <username>
 ```
 
 ### Read a personalized blog summary
