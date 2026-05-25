@@ -26,3 +26,6 @@ orchestrator/htmls/
 orchestrator/pdfs/
 orchestrator/imgs/
 *.log
+
+# OpenClaw local workspace
+.openclaw/

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-PaperIgnitionV1 is a standalone AI-powered academic paper recommendation system (package: `paperignition` v2.0.0). It fetches papers from arXiv, indexes them with pgvector for semantic search, generates blog summaries using Gemini LLMs, and delivers personalized recommendations via a React SPA frontend.
+PaperIgnitionV1 is a standalone AI-powered academic paper recommendation system (package: `paperignition` v1.0.0). It fetches papers from arXiv, indexes them with pgvector for semantic search, generates blog summaries using Gemini LLMs, and delivers personalized recommendations via a React SPA frontend.
 
 **Key difference from PaperIgnition(Beta):** V1 is fully standalone — no external `AIgnite` package dependency. All needed functionality is inlined in the `core/` package.
 
@@ -421,17 +421,31 @@ export PI_API_KEY="pi_live_..."
 export PI_BASE_URL="https://www.paperignition.com"
 
 # Search
-paperignition search "transformer attention" --pretty
-paperignition search-bm25 "reinforcement learning" --pretty
+paperignition --pretty search "transformer attention"
+paperignition --pretty search-bm25 "reinforcement learning"
 
 # Digest
-paperignition digest-list <username> --pretty
+paperignition --pretty digest-list <username>
 paperignition digest-blog <paper_id> <username>
 ```
 
 **Auth flow:** Endpoints accept JWT `Authorization: Bearer <token>` OR `X-API-Key: pi_live_...` OR `X-Service-Token`. API keys work on read-only endpoints (papers search, digests read). Management (favorites, profile, key CRUD) requires JWT.
 
 **Claude Code skill:** `.claude/skills/paperignition/SKILL.md` — tells Claude Code how to invoke the CLI for paper search and digest reading.
+
+### Keeping Agent Skills in Sync
+
+Two skill consumers wrap the same `paperignition` CLI:
+- **Claude Code** (`.claude/skills/paperignition/SKILL.md`) — thin docs invoking CLI commands
+- **OpenClaw** (`openclaw/skills/paperignition/SKILL.md`) — versioned, publishable skill invoking the same CLI commands
+
+**Sync rule:** both skills wrap the CLI; update the CLI, both inherit. Single source of truth is `scripts/agent_cli/cli.py`. When modifying the CLI (new commands, changed flags, changed output), both skills pick up changes automatically through their shared invocation of the `paperignition` binary.
+
+**Install:** `pipx install -e .` (recommended on macOS/Linux) or `pip install -e .` inside an activated venv. On macOS system Python, `pip install -e .` places the script in `~/Library/Python/3.X/bin` which is not on PATH — use `pipx` or a venv.
+
+**OpenClaw-specific features** (Feishu delivery, research focus areas) live in `openclaw/skills/paperignition/` only and are not ported to the Claude Code skill.
+
+**`.openclaw/`** (dot-prefix) is the local OpenClaw workspace, gitignored. `openclaw/` (no dot) is the versioned skill directory. Do not confuse them.
 
 ## Important Notes
 
