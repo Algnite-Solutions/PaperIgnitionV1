@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-PaperIgnitionV1 is a standalone AI-powered academic paper recommendation system (package: `paperignition` v2.0.0). It fetches papers from arXiv, indexes them with pgvector for semantic search, generates blog summaries using Gemini LLMs, and delivers personalized recommendations via a React SPA frontend.
+PaperIgnitionV1 is a standalone AI-powered academic paper recommendation system (package: `paperignition` v1.0.0). It fetches papers from arXiv, indexes them with pgvector for semantic search, generates blog summaries using Gemini LLMs, and delivers personalized recommendations via a React SPA frontend.
 
 **Key difference from PaperIgnition(Beta):** V1 is fully standalone — no external `AIgnite` package dependency. All needed functionality is inlined in the `core/` package.
 

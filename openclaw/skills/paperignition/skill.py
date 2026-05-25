@@ -9,8 +9,8 @@ delivery channels that have no CLI equivalent.
 import json
 import os
 import sys
-import urllib.request
 import urllib.error
+import urllib.request
 
 
 def _load_env():
