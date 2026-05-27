@@ -1,9 +1,0 @@
-{
-  "name": "PaperIgnition",
-  "version": "1.0.0",
-  "description": "Search papers and read personalized daily digests from PaperIgnition via the paperignition CLI",
-  "author": "Algnite Solutions",
-  "category": "research",
-  "tags": ["papers", "arxiv", "academic", "search", "digest", "openclaw"],
-  "usage": "paperignition [search|search-bm25|digest-list|digest-blog] ... || ./skill.py feishu \"message\""
-}
