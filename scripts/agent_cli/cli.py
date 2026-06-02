@@ -48,6 +48,16 @@ def main():
     db.add_argument("paper_id")
     db.add_argument("username")
 
+    # chunks
+    ck = sub.add_parser("chunks", help="List all text chunks for a paper")
+    ck.add_argument("doc_id")
+
+    # search-chunks
+    sc = sub.add_parser("search-chunks", help="BM25 search across paper text chunks")
+    sc.add_argument("query")
+    sc.add_argument("--doc-ids", nargs="+", help="Restrict search to these doc_ids")
+    sc.add_argument("--top-k", type=int, default=20)
+
     args = parser.parse_args()
 
     if not args.api_key:
@@ -73,6 +83,10 @@ def main():
             result = client.get_recommendations(args.username, args.limit)
         elif args.command == "digest-blog":
             result = client.get_blog_content(args.paper_id, args.username)
+        elif args.command == "chunks":
+            result = client.get_chunks(args.doc_id)
+        elif args.command == "search-chunks":
+            result = client.search_chunks(args.query, args.doc_ids, args.top_k)
         else:
             parser.print_help()
             sys.exit(1)

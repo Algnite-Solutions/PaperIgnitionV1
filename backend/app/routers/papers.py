@@ -56,6 +56,41 @@ class FindSimilarResponse(BaseModel):
     total: int
 
 
+# ==================== Chunk Access Models ====================
+
+class ChunkItem(BaseModel):
+    chunk_id: str
+    chunk_order: int
+    text_content: str
+
+
+class ChunksResponse(BaseModel):
+    doc_id: str
+    total: int
+    chunks: List[ChunkItem]
+
+
+class SearchChunksRequest(BaseModel):
+    query: str = Field(..., min_length=1, max_length=2000)
+    doc_ids: Optional[List[str]] = None
+    top_k: int = Field(default=20, ge=1, le=200)
+    snippet_chars: int = Field(default=300, ge=50, le=2000)
+
+
+class ChunkSearchResult(BaseModel):
+    doc_id: str
+    chunk_id: str
+    chunk_order: int
+    snippet: str
+    score: float
+
+
+class SearchChunksResponse(BaseModel):
+    results: List[ChunkSearchResult]
+    query: str
+    total: int
+
+
 # ==================== Embedding Client for Backend ====================
 
 class BackendEmbeddingClient:
@@ -389,6 +424,138 @@ async def find_similar_papers_bm25(
     except Exception as e:
         logger.error(f"Error in find_similar_bm25: {e}")
         raise HTTPException(status_code=500, detail=f"BM25 search failed: {str(e)}")
+
+
+# ==================== Chunk Endpoints ====================
+
+@router.get("/chunks/{doc_id}", response_model=ChunksResponse)
+@limiter.limit("30/minute")
+async def get_paper_chunks(
+    request: Request,
+    doc_id: str,
+    db: AsyncSession = Depends(get_paper_db),
+    _auth=Depends(verify_jwt_or_service),
+):
+    """List all text chunks for a paper, ordered by chunk_order."""
+    if not doc_id or not doc_id.strip():
+        raise HTTPException(status_code=422, detail="Document ID cannot be empty")
+
+    doc_id = doc_id.strip()
+
+    try:
+        sql = text("""
+            SELECT chunk_id, chunk_order, text_content
+            FROM text_chunks
+            WHERE doc_id = :doc_id
+            ORDER BY chunk_order
+        """)
+        result = await db.execute(sql, {"doc_id": doc_id})
+        rows = result.fetchall()
+
+        if not rows:
+            raise HTTPException(status_code=404, detail=f"No chunks found for doc_id: {doc_id}")
+
+        chunks = [
+            ChunkItem(chunk_id=row[0], chunk_order=row[1], text_content=row[2] or "")
+            for row in rows
+        ]
+
+        return ChunksResponse(doc_id=doc_id, total=len(chunks), chunks=chunks)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting chunks for {doc_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get chunks: {str(e)}")
+
+
+@router.post("/search_chunks", response_model=SearchChunksResponse)
+@limiter.limit("30/minute")
+async def search_chunks(
+    request_body: SearchChunksRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_paper_db),
+    _auth=Depends(verify_jwt_or_service),
+):
+    """
+    Paragraph-level BM25 search across text_chunks using the GIN full-text index.
+
+    Flow:
+    1. Convert query to tsquery
+    2. Build SQL with optional doc_ids filter
+    3. Search text_chunks using GIN index
+    4. Return scored snippets with chunk_id provenance
+    """
+    try:
+        query_terms = request_body.query.strip()
+        if not query_terms:
+            raise HTTPException(status_code=400, detail="Query cannot be empty")
+
+        cleaned_query = query_terms.replace(",", " ").replace(";", " ").replace("|", " ")
+        cleaned_query = " ".join(cleaned_query.split())
+
+        params: Dict[str, Any] = {
+            "limit": request_body.top_k,
+            "snippet_chars": request_body.snippet_chars,
+            "query": cleaned_query,
+        }
+
+        doc_filter = ""
+        if request_body.doc_ids:
+            placeholders = ", ".join(f":did_{i}" for i in range(len(request_body.doc_ids)))
+            doc_filter = f"AND tc.doc_id IN ({placeholders})"
+            for i, did in enumerate(request_body.doc_ids):
+                params[f"did_{i}"] = did
+
+        sql_str = f"""
+            WITH ranked AS (
+                SELECT tc.doc_id, tc.chunk_id, tc.chunk_order, tc.text_content,
+                       ts_rank(
+                           to_tsvector('english', coalesce(tc.text_content, '')),
+                           plainto_tsquery('english', :query)
+                       ) AS score
+                FROM text_chunks tc
+                WHERE to_tsvector('english', coalesce(tc.text_content, ''))
+                      @@ plainto_tsquery('english', :query)
+                {doc_filter}
+            )
+            SELECT doc_id, chunk_id, chunk_order, text_content, score
+            FROM ranked
+            WHERE score > 0
+            ORDER BY score DESC
+            LIMIT :limit
+        """
+
+        result = await db.execute(text(sql_str), params)
+        rows = result.fetchall()
+
+        results = []
+        for row in rows:
+            raw_text = row[3] or ""
+            snippet = raw_text[: request_body.snippet_chars]
+            if len(raw_text) > request_body.snippet_chars:
+                snippet += "..."
+            results.append(ChunkSearchResult(
+                doc_id=row[0],
+                chunk_id=row[1],
+                chunk_order=row[2],
+                snippet=snippet,
+                score=float(row[4]),
+            ))
+
+        logger.info(f"Chunk search returned {len(results)} results for query: {query_terms[:50]}...")
+
+        return SearchChunksResponse(
+            results=results,
+            query=request_body.query,
+            total=len(results),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in search_chunks: {e}")
+        raise HTTPException(status_code=500, detail=f"Chunk search failed: {str(e)}")
 
 
 # ==================== Image Helpers ====================
