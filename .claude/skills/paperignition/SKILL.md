@@ -30,6 +30,16 @@ paperignition --pretty search "graph neural networks for code optimization" --to
 paperignition --pretty search-bm25 "reinforcement learning human feedback" --top-k 5
 ```
 
+## Full Text Workflow
+
+### Read a paper's OCR full text (from text_chunks)
+
+```bash
+paperignition full-text <doc_id>
+```
+
+Returns the raw concatenated markdown from the `text_chunks` table — the actual paper content, not the LLM blog summary. Use `content <paper_id>` only when you specifically want the blog.
+
 ## Digest Workflow
 
 ### List today's recommendations

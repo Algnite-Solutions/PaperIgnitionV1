@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -448,6 +449,48 @@ async def get_paper_content(
     except Exception as e:
         logger.error(f"Error getting paper content for {paper_id}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to get paper content: {str(e)}")
+
+
+# ==================== Paper Full Text (Raw Chunks) ====================
+
+@router.get("/full_text/{doc_id}")
+@limiter.limit("30/minute")
+async def get_paper_full_text(
+    request: Request,
+    doc_id: str,
+    db: AsyncSession = Depends(get_paper_db),
+    _auth=Depends(verify_jwt_or_service),
+):
+    """Reconstruct a paper's full text by concatenating text_chunks in order."""
+    if not doc_id or not doc_id.strip():
+        raise HTTPException(status_code=422, detail="Document ID cannot be empty")
+
+    doc_id = doc_id.strip()
+    logger.info(f"Fetching full text for doc_id: {doc_id}")
+
+    try:
+        query = text(
+            "SELECT text_content FROM text_chunks "
+            "WHERE doc_id = :doc_id ORDER BY chunk_order"
+        )
+        result = await db.execute(query, {"doc_id": doc_id})
+        rows = result.fetchall()
+
+        if not rows:
+            raise HTTPException(
+                status_code=404,
+                detail="No text chunks indexed for this paper. "
+                       "Either the paper is not in the corpus or extraction has not completed.",
+            )
+
+        full_text = "\n\n".join(row[0] or "" for row in rows)
+        return Response(content=full_text, media_type="text/markdown")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting full text for {doc_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get full text: {str(e)}")
 
 
 # ==================== Paper Metadata ====================
