@@ -47,6 +47,15 @@ class PaperIgnitionClient:
         resp.raise_for_status()
         return resp.text
 
+    def get_paper_full_text(self, doc_id: str):
+        resp = httpx.get(
+            f"{self._base_url}/api/papers/full_text/{doc_id}",
+            headers=self._headers,
+            timeout=30.0,
+        )
+        resp.raise_for_status()
+        return resp.text
+
     def get_recommendations(self, username: str, limit: int = 50):
         resp = httpx.get(
             f"{self._base_url}/api/digests/recommendations/{username}",

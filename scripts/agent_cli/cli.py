@@ -38,6 +38,10 @@ def main():
     ct = sub.add_parser("content", help="Get paper blog content")
     ct.add_argument("paper_id")
 
+    # full-text
+    ft = sub.add_parser("full-text", help="Get paper OCR full text from text_chunks")
+    ft.add_argument("doc_id")
+
     # digest list
     dl = sub.add_parser("digest-list", help="List daily digest recommendations")
     dl.add_argument("username")
@@ -69,6 +73,8 @@ def main():
             result = client.get_paper_metadata(args.doc_id)
         elif args.command == "content":
             result = client.get_paper_content(args.paper_id)
+        elif args.command == "full-text":
+            result = client.get_paper_full_text(args.doc_id)
         elif args.command == "digest-list":
             result = client.get_recommendations(args.username, args.limit)
         elif args.command == "digest-blog":
