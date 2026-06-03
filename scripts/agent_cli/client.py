@@ -65,25 +65,3 @@ class PaperIgnitionClient:
         )
         resp.raise_for_status()
         return resp.text
-
-    def get_chunks(self, doc_id: str):
-        resp = httpx.get(
-            f"{self._base_url}/api/papers/chunks/{doc_id}",
-            headers=self._headers,
-            timeout=30.0,
-        )
-        resp.raise_for_status()
-        return resp.json()
-
-    def search_chunks(self, query: str, doc_ids: list[str] | None = None, top_k: int = 20):
-        body: dict = {"query": query, "top_k": top_k}
-        if doc_ids:
-            body["doc_ids"] = doc_ids
-        resp = httpx.post(
-            f"{self._base_url}/api/papers/search_chunks",
-            json=body,
-            headers=self._headers,
-            timeout=30.0,
-        )
-        resp.raise_for_status()
-        return resp.json()
