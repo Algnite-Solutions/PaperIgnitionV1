@@ -185,7 +185,7 @@ async def find_similar_papers(
             if "include" in request_body.filters and "published_date" in request_body.filters["include"]:
                 date_range = request_body.filters["include"]["published_date"]
                 if len(date_range) == 2:
-                    candidate_conditions.append("p.published_date >= :start_date AND p.published_date <= :end_date")
+                    candidate_conditions.append("p.published_date::text >= :start_date AND p.published_date::text <= :end_date")
                     params["start_date"] = date_range[0]
                     params["end_date"] = date_range[1]
 
@@ -317,7 +317,7 @@ async def find_similar_papers_bm25(
             if "include" in request_body.filters and "published_date" in request_body.filters["include"]:
                 date_range = request_body.filters["include"]["published_date"]
                 if len(date_range) == 2:
-                    filter_conditions.append("p.published_date >= :start_date AND p.published_date <= :end_date")
+                    filter_conditions.append("p.published_date::text >= :start_date AND p.published_date::text <= :end_date")
                     params["start_date"] = date_range[0]
                     params["end_date"] = date_range[1]
 
