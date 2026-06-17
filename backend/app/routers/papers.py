@@ -7,7 +7,6 @@ Prefix: /papers
 import logging
 import os
 import re
-from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import httpx
@@ -186,7 +185,7 @@ async def find_similar_papers(
             if "include" in request_body.filters and "published_date" in request_body.filters["include"]:
                 date_range = request_body.filters["include"]["published_date"]
                 if len(date_range) == 2:
-                    candidate_conditions.append("p.published_date >= :start_date AND p.published_date <= :end_date")
+                    candidate_conditions.append("p.published_date::text >= :start_date AND p.published_date::text <= :end_date")
                     params["start_date"] = date_range[0]
                     params["end_date"] = date_range[1]
 
@@ -318,16 +317,9 @@ async def find_similar_papers_bm25(
             if "include" in request_body.filters and "published_date" in request_body.filters["include"]:
                 date_range = request_body.filters["include"]["published_date"]
                 if len(date_range) == 2:
-                    filter_conditions.append("p.published_date >= :start_date AND p.published_date <= :end_date")
-                    # Convert string dates to datetime objects if needed
-                    start_date = date_range[0]
-                    end_date = date_range[1]
-                    if isinstance(start_date, str):
-                        start_date = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
-                    if isinstance(end_date, str):
-                        end_date = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
-                    params["start_date"] = start_date
-                    params["end_date"] = end_date
+                    filter_conditions.append("p.published_date::text >= :start_date AND p.published_date::text <= :end_date")
+                    params["start_date"] = date_range[0]
+                    params["end_date"] = date_range[1]
 
         # Build WHERE clause
         where_clause = ""
