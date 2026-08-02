@@ -310,7 +310,7 @@ class ProfilePoolOptimizer:
         evaluator: PoolEvaluator,
         pool_size: int = 5,
         max_mutations: int = 2,
-        model_name: str = "gemini-3-flash-preview",
+        model_name: str = "gemini-3.6-flash",
         n_variants: int | None = None,
     ):
         self.extractor = extractor
