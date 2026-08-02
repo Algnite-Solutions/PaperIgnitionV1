@@ -27,19 +27,19 @@ user_recommendation:
 
 models:
   blog_generation:
-    model_id: gemini-3.1-flash-lite
+    model_id: gemini-3.5-flash-lite
     rate_limits:
       rpm: 15
       rpd: 500
       warning_threshold: 0.8
   recommendation:
-    model_id: gemini-3.1-flash-lite
+    model_id: gemini-3.5-flash-lite
     rate_limits:
       rpm: 15
       rpd: 500
       warning_threshold: 0.8
   profile_extraction:
-    model_id: gemini-3-flash-preview
+    model_id: gemini-3.6-flash
 
 profile_pool:
   enabled: true

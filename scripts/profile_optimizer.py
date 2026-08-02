@@ -18,7 +18,7 @@ Usage:
     python scripts/profile_optimizer.py --user "Qi Zhu" --no-eval
 
     # Use a specific model
-    python scripts/profile_optimizer.py --user "Qi Zhu" --model gemini-3-flash-preview
+    python scripts/profile_optimizer.py --user "Qi Zhu" --model gemini-3.6-flash
 
     # Write results to file
     python scripts/profile_optimizer.py --user "Qi Zhu" --output results/qi_zhu_pool.json
@@ -453,8 +453,8 @@ def run_trajectory(
 def main():
     parser = argparse.ArgumentParser(description="Standalone profile pool optimizer (no DB writes)")
     parser.add_argument("--user", required=True, help="Username to optimize profile for")
-    parser.add_argument("--model", default="gemini-3-flash-preview", help="Gemini model (default: gemini-3-flash-preview)")
-    parser.add_argument("--eval-model", default="gemini-3.1-flash-lite", help="Gemini model used for evaluation (default: gemini-3.1-flash-lite)")
+    parser.add_argument("--model", default="gemini-3.6-flash", help="Gemini model (default: gemini-3.6-flash)")
+    parser.add_argument("--eval-model", default="gemini-3.5-flash-lite", help="Gemini model used for evaluation (default: gemini-3.5-flash-lite)")
     parser.add_argument("--max-papers", type=int, default=50, help="Max papers for training in --full mode (default: 50)")
     parser.add_argument("--max-val-bins", type=int, default=30, help="Max history bins for evaluation per checkpoint (default: 30)")
     parser.add_argument("--pool-size", type=int, default=3, help="Max pool size (default: 3)")

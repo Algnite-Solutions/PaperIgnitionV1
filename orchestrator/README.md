@@ -94,12 +94,12 @@ user_recommendation:
 ```yaml
 models:
   blog_generation:
-    model_id: gemini-3.1-flash-lite-preview
+    model_id: gemini-3.5-flash-lite
     rate_limits:
       rpm: 15
       rpd: 1500
   recommendation:
-    model_id: gemini-3.1-flash-lite-preview
+    model_id: gemini-3.5-flash-lite
     rate_limits:
       rpm: 10
       rpd: 1000
