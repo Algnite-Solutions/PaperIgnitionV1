@@ -80,6 +80,25 @@ class TestApiKeyManagement:
 
 @pytest.mark.usefixtures("clean_tables")
 class TestApiKeyAuthentication:
+    async def test_papers_by_date_with_api_key(self, client, api_key_headers, paper_db_conn):
+        with paper_db_conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO papers (doc_id, title, abstract, published_date)
+                VALUES (%s, %s, %s, %s)
+                """,
+                ("2607.apikeyv1", "API Key Daily List", "Test", "2026-07-20T12:00:00+00:00"),
+            )
+        paper_db_conn.commit()
+
+        resp = await client.get(
+            "/api/papers/by-date",
+            params={"published_date": "2026-07-20"},
+            headers=api_key_headers,
+        )
+        assert resp.status_code == 200
+        assert [paper["doc_id"] for paper in resp.json()["papers"]] == ["2607.apikeyv1"]
+
     async def test_find_similar_with_api_key(self, client, api_key_headers, paper_db_conn, mock_dashscope):
         dim = 1536
         vec = [0.0] * dim

@@ -380,6 +380,7 @@ React 19 + Vite 6 + TypeScript SPA replacing the legacy `beta_frontend/`.
 **Papers:**
 - `POST /api/papers/find_similar` — semantic search (pgvector embeddings)
 - `POST /api/papers/find_similar_bm25` — full-text search (BM25 / PostgreSQL ts_rank)
+- `GET /api/papers/by-date?published_date=YYYY-MM-DD` — cursor-paginated manifest of every paper published on a UTC date
 - `GET /api/papers/content/{paper_id}` — global blog content
 - `GET /api/papers/metadata/{doc_id}` — paper metadata
 
