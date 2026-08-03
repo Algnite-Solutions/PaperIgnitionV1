@@ -216,8 +216,8 @@ async def get_papers_by_date(
 
     try:
         date_filter = (
-            "published_date >= :start_date "
-            "AND published_date < :end_date"
+            "NULLIF(published_date::text, '')::timestamptz >= :start_date "
+            "AND NULLIF(published_date::text, '')::timestamptz < :end_date"
         )
         count_result = await db.execute(
             text(f"SELECT COUNT(*) FROM papers WHERE {date_filter}"),

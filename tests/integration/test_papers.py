@@ -113,6 +113,44 @@ class TestPapers:
         )
         assert invalid_cursor.status_code == 422
 
+    async def test_papers_by_date_supports_production_varchar_schema(
+        self, client, paper_db_conn, auth_headers
+    ):
+        """Production stores normalized UTC publication timestamps as varchar."""
+        with paper_db_conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT data_type
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                  AND table_name = 'papers'
+                  AND column_name = 'published_date'
+                """
+            )
+            assert cur.fetchone() == ("character varying",)
+            cur.execute(
+                """
+                INSERT INTO papers (doc_id, title, published_date)
+                VALUES (%s, %s, %s)
+                """,
+                (
+                    "2607.varcharv1",
+                    "Production Schema Fixture",
+                    "2026-07-20 08:30:00+00:00",
+                ),
+            )
+        paper_db_conn.commit()
+
+        response = await client.get(
+            "/api/papers/by-date",
+            params={"published_date": "2026-07-20"},
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.json()["total"] == 1
+        assert response.json()["papers"][0]["doc_id"] == "2607.varcharv1"
+
     async def test_paper_metadata_not_found(self, client):
         resp = await client.get("/api/papers/metadata/nonexistent_doc_id")
         assert resp.status_code == 404

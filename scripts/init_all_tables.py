@@ -212,7 +212,7 @@ def init_paper_database(config_path: str = None, drop_existing: bool = False):
                     abstract TEXT,
                     authors JSONB,
                     categories JSONB,
-                    published_date TIMESTAMP WITH TIME ZONE,
+                    published_date VARCHAR,
                     pdf_data BYTEA,
                     chunk_ids JSONB,
                     figure_ids JSONB,
