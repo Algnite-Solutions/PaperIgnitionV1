@@ -11,7 +11,7 @@ import logging
 import os
 import re
 from datetime import date as Date
-from datetime import timedelta
+from datetime import datetime, time, timedelta, timezone
 from typing import Any, Dict, List, Optional
 from urllib.parse import quote
 
@@ -210,14 +210,14 @@ async def get_papers_by_date(
     cursor_doc_id = _decode_date_cursor(cursor, published_date) if cursor else None
     next_date = published_date + timedelta(days=1)
     params = {
-        "start_date": f"{published_date.isoformat()}T00:00:00+00:00",
-        "end_date": f"{next_date.isoformat()}T00:00:00+00:00",
+        "start_date": datetime.combine(published_date, time.min, tzinfo=timezone.utc),
+        "end_date": datetime.combine(next_date, time.min, tzinfo=timezone.utc),
     }
 
     try:
         date_filter = (
-            "published_date >= CAST(:start_date AS TIMESTAMPTZ) "
-            "AND published_date < CAST(:end_date AS TIMESTAMPTZ)"
+            "published_date >= :start_date "
+            "AND published_date < :end_date"
         )
         count_result = await db.execute(
             text(f"SELECT COUNT(*) FROM papers WHERE {date_filter}"),
