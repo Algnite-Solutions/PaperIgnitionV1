@@ -1,12 +1,118 @@
 """Integration tests for paper endpoints against real PostgreSQL + pgvector."""
 
 import json
+from datetime import datetime, timezone
 
 import pytest
 
 
 @pytest.mark.usefixtures("clean_tables")
 class TestPapers:
+    async def test_papers_by_date_requires_auth(self, client):
+        resp = await client.get(
+            "/api/papers/by-date",
+            params={"published_date": "2026-07-20"},
+        )
+        assert resp.status_code == 401
+
+    async def test_papers_by_date_is_complete_and_cursor_paginated(
+        self, client, paper_db_conn, auth_headers
+    ):
+        papers = [
+            ("2607.00003v1", "Third", datetime(2026, 7, 20, 18, 0, tzinfo=timezone.utc)),
+            ("2607.00001v1", "First", datetime(2026, 7, 20, 1, 0, tzinfo=timezone.utc)),
+            ("2607.00002v1", "Second", datetime(2026, 7, 20, 12, 0, tzinfo=timezone.utc)),
+            ("2607.beforev1", "Before", datetime(2026, 7, 19, 23, 59, 59, tzinfo=timezone.utc)),
+            ("2607.afterv1", "After", datetime(2026, 7, 21, 0, 0, tzinfo=timezone.utc)),
+        ]
+        with paper_db_conn.cursor() as cur:
+            for doc_id, title, published_date in papers:
+                cur.execute(
+                    """
+                    INSERT INTO papers (
+                        doc_id, title, abstract, authors, categories, published_date, pdf_path
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        doc_id,
+                        title,
+                        f"Abstract for {title}",
+                        json.dumps(["Test Author"]),
+                        json.dumps(["cs.AI"]),
+                        published_date,
+                        "/server-only/path.pdf",
+                    ),
+                )
+        paper_db_conn.commit()
+
+        first_resp = await client.get(
+            "/api/papers/by-date",
+            params={"published_date": "2026-07-20", "limit": 2},
+            headers=auth_headers,
+        )
+        assert first_resp.status_code == 200, first_resp.text
+        first_page = first_resp.json()
+        assert first_page["date"] == "2026-07-20"
+        assert first_page["timezone"] == "UTC"
+        assert first_page["total"] == 3
+        assert [paper["doc_id"] for paper in first_page["papers"]] == [
+            "2607.00001v1",
+            "2607.00002v1",
+        ]
+        assert first_page["papers"][0]["pdf_url"] == "https://arxiv.org/pdf/2607.00001v1"
+        assert first_page["next_cursor"]
+
+        second_resp = await client.get(
+            "/api/papers/by-date",
+            params={
+                "published_date": "2026-07-20",
+                "limit": 2,
+                "cursor": first_page["next_cursor"],
+            },
+            headers=auth_headers,
+        )
+        assert second_resp.status_code == 200, second_resp.text
+        second_page = second_resp.json()
+        assert second_page["total"] == 3
+        assert [paper["doc_id"] for paper in second_page["papers"]] == ["2607.00003v1"]
+        assert second_page["next_cursor"] is None
+
+    async def test_papers_by_date_empty_and_validates_pagination(self, client, auth_headers):
+        empty_resp = await client.get(
+            "/api/papers/by-date",
+            params={"published_date": "2026-07-20"},
+            headers=auth_headers,
+        )
+        assert empty_resp.status_code == 200
+        assert empty_resp.json() == {
+            "date": "2026-07-20",
+            "timezone": "UTC",
+            "total": 0,
+            "papers": [],
+            "next_cursor": None,
+        }
+
+        invalid_date = await client.get(
+            "/api/papers/by-date",
+            params={"published_date": "2026-07-32"},
+            headers=auth_headers,
+        )
+        assert invalid_date.status_code == 422
+
+        invalid_limit = await client.get(
+            "/api/papers/by-date",
+            params={"published_date": "2026-07-20", "limit": 101},
+            headers=auth_headers,
+        )
+        assert invalid_limit.status_code == 422
+
+        invalid_cursor = await client.get(
+            "/api/papers/by-date",
+            params={"published_date": "2026-07-20", "cursor": "not-a-cursor"},
+            headers=auth_headers,
+        )
+        assert invalid_cursor.status_code == 422
+
     async def test_paper_metadata_not_found(self, client):
         resp = await client.get("/api/papers/metadata/nonexistent_doc_id")
         assert resp.status_code == 404

@@ -4,13 +4,19 @@ Papers Router - Paper search, content, metadata, and image endpoints
 Handles paper-level operations (not user-specific).
 Prefix: /papers
 """
+import base64
+import binascii
+import json
 import logging
 import os
 import re
+from datetime import date as Date
+from datetime import timedelta
 from typing import Any, Dict, List, Optional
+from urllib.parse import quote
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from sqlalchemy import text
@@ -54,6 +60,57 @@ class FindSimilarResponse(BaseModel):
     results: List[SimilarPaper]
     query: str
     total: int
+
+
+class DailyPaper(BaseModel):
+    """Paper metadata included in a published-date manifest."""
+
+    doc_id: str
+    title: str
+    abstract: str
+    authors: List[str]
+    categories: List[str]
+    published_date: str
+    pdf_url: str
+
+
+class PapersByDateResponse(BaseModel):
+    """One cursor-paginated page of a published-date manifest."""
+
+    date: Date
+    timezone: str = "UTC"
+    total: int
+    papers: List[DailyPaper]
+    next_cursor: Optional[str] = None
+
+
+def _encode_date_cursor(published_date: Date, doc_id: str) -> str:
+    payload = json.dumps(
+        {"v": 1, "date": published_date.isoformat(), "doc_id": doc_id},
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return base64.urlsafe_b64encode(payload).rstrip(b"=").decode("ascii")
+
+
+def _decode_date_cursor(cursor: str, published_date: Date) -> str:
+    try:
+        padding = "=" * (-len(cursor) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(cursor + padding))
+        if (
+            not isinstance(payload, dict)
+            or payload.get("v") != 1
+            or payload.get("date") != published_date.isoformat()
+            or not isinstance(payload.get("doc_id"), str)
+            or not payload["doc_id"]
+        ):
+            raise ValueError
+        return payload["doc_id"]
+    except (binascii.Error, UnicodeDecodeError, ValueError, TypeError, json.JSONDecodeError):
+        raise HTTPException(status_code=422, detail="Invalid cursor for published_date")
+
+
+def _arxiv_pdf_url(doc_id: str) -> str:
+    return f"https://arxiv.org/pdf/{quote(doc_id, safe='/')}"
 
 
 # ==================== Embedding Client for Backend ====================
@@ -131,6 +188,90 @@ def get_embedding_client(request: Request) -> BackendEmbeddingClient:
     _embedding_client_config = current_config_hash
 
     return _embedding_client
+
+
+# ==================== Papers By Published Date ====================
+
+@router.get("/by-date", response_model=PapersByDateResponse)
+@limiter.limit("30/minute")
+async def get_papers_by_date(
+    request: Request,
+    published_date: Date = Query(..., description="UTC publication date (YYYY-MM-DD)"),
+    limit: int = Query(default=100, ge=1, le=100),
+    cursor: Optional[str] = Query(default=None, description="Opaque cursor returned by the previous page"),
+    db: AsyncSession = Depends(get_paper_db),
+    _auth=Depends(verify_jwt_or_service),
+):
+    """List every ingested paper published on a UTC date.
+
+    Results use stable keyset pagination ordered by ``doc_id``. ``total`` is
+    the complete number of matching papers, not the size of the current page.
+    """
+    cursor_doc_id = _decode_date_cursor(cursor, published_date) if cursor else None
+    next_date = published_date + timedelta(days=1)
+    params = {
+        "start_date": f"{published_date.isoformat()}T00:00:00+00:00",
+        "end_date": f"{next_date.isoformat()}T00:00:00+00:00",
+    }
+
+    try:
+        date_filter = (
+            "published_date >= CAST(:start_date AS TIMESTAMPTZ) "
+            "AND published_date < CAST(:end_date AS TIMESTAMPTZ)"
+        )
+        count_result = await db.execute(
+            text(f"SELECT COUNT(*) FROM papers WHERE {date_filter}"),
+            params,
+        )
+        total = int(count_result.scalar_one())
+
+        cursor_filter = ""
+        if cursor_doc_id is not None:
+            cursor_filter = " AND doc_id > :cursor_doc_id"
+            params["cursor_doc_id"] = cursor_doc_id
+        params["page_limit"] = limit + 1
+
+        page_result = await db.execute(
+            text(
+                "SELECT doc_id, title, abstract, authors, categories, published_date "
+                f"FROM papers WHERE {date_filter}{cursor_filter} "
+                "ORDER BY doc_id ASC LIMIT :page_limit"
+            ),
+            params,
+        )
+        rows = page_result.fetchall()
+        has_more = len(rows) > limit
+        page_rows = rows[:limit]
+
+        papers = [
+            DailyPaper(
+                doc_id=row[0],
+                title=row[1] or "",
+                abstract=row[2] or "",
+                authors=row[3] or [],
+                categories=row[4] or [],
+                published_date=str(row[5]),
+                pdf_url=_arxiv_pdf_url(row[0]),
+            )
+            for row in page_rows
+        ]
+        next_cursor = (
+            _encode_date_cursor(published_date, page_rows[-1][0])
+            if has_more and page_rows
+            else None
+        )
+
+        return PapersByDateResponse(
+            date=published_date,
+            total=total,
+            papers=papers,
+            next_cursor=next_cursor,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error listing papers for %s: %s", published_date, e)
+        raise HTTPException(status_code=500, detail="Failed to list papers by date")
 
 
 # ==================== Find Similar Endpoint ====================
